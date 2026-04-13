@@ -34,6 +34,11 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Install build tools
+        run: |
+          make controller-gen
+          make kustomize
+
       - name: Run go fmt
         run: |
           if [ -n "$(gofmt -s -l . | grep -v '^vendor/')" ]; then

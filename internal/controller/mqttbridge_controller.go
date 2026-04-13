@@ -76,7 +76,7 @@ func (r *MQTTBridgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Handle deletion
-	if !bridge.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !bridge.DeletionTimestamp.IsZero() {
 		return r.handleDeletion(ctx, bridge, log)
 	}
 

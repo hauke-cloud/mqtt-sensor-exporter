@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -68,9 +69,13 @@ var _ = Describe("Device Controller", func() {
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
+			// Create a logger for the test
+			testLogger, _ := zap.NewDevelopment()
+
 			controllerReconciler := &DeviceReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+				Log:    testLogger,
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

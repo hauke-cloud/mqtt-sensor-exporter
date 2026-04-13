@@ -54,11 +54,11 @@ func (h *StatusHandler) HandleMessage(ctx context.Context, msgCtx *MessageContex
 		zap.String("bridge", msgCtx.BridgeName))
 
 	// Check for discovery messages (ZbStatus1 or ZbStatus3) and forward to discovery handler
-	if (msg.ZbStatus1 != nil && len(msg.ZbStatus1) > 0) || (msg.ZbStatus3 != nil && len(msg.ZbStatus3) > 0) {
+	if len(msg.ZbStatus1) > 0 || len(msg.ZbStatus3) > 0 {
 		if h.discoveryHandler != nil {
 			h.log.Debug("Forwarding discovery message to discovery handler",
-				zap.Bool("hasZbStatus1", msg.ZbStatus1 != nil),
-				zap.Bool("hasZbStatus3", msg.ZbStatus3 != nil))
+				zap.Bool("hasZbStatus1", len(msg.ZbStatus1) > 0),
+				zap.Bool("hasZbStatus3", len(msg.ZbStatus3) > 0))
 			return h.discoveryHandler.HandleMessage(ctx, msgCtx, payload)
 		}
 	}
@@ -77,7 +77,7 @@ func (h *StatusHandler) HandleMessage(ctx context.Context, msgCtx *MessageContex
 }
 
 // handleZbSendResult processes ZbSend command results
-func (h *StatusHandler) handleZbSendResult(ctx context.Context, msgCtx *MessageContext, result *ZbSendResult) {
+func (h *StatusHandler) handleZbSendResult(_ context.Context, msgCtx *MessageContext, result *ZbSendResult) {
 	h.log.Info("Received ZbSend result",
 		zap.String("device", result.Device),
 		zap.String("status", result.Status),
@@ -88,7 +88,7 @@ func (h *StatusHandler) handleZbSendResult(ctx context.Context, msgCtx *MessageC
 }
 
 // handleZbNameResult processes ZbName command results
-func (h *StatusHandler) handleZbNameResult(ctx context.Context, msgCtx *MessageContext, result *ZbNameResult) {
+func (h *StatusHandler) handleZbNameResult(_ context.Context, msgCtx *MessageContext, result *ZbNameResult) {
 	h.log.Info("Received ZbName result",
 		zap.String("device", result.Device),
 		zap.String("name", result.Name),

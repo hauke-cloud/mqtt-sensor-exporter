@@ -68,12 +68,12 @@ func (h *DiscoveryHandler) HandleMessage(ctx context.Context, msgCtx *MessageCon
 	}
 
 	// Handle ZbStatus1 response (initial discovery with short addresses)
-	if msg.ZbStatus1 != nil && len(msg.ZbStatus1) > 0 {
+	if len(msg.ZbStatus1) > 0 {
 		return h.handleZbStatus1(ctx, msgCtx, msg.ZbStatus1)
 	}
 
 	// Handle ZbStatus3 response (detailed info with full IEEE address)
-	if msg.ZbStatus3 != nil && len(msg.ZbStatus3) > 0 {
+	if len(msg.ZbStatus3) > 0 {
 		return h.handleZbStatus3(ctx, msgCtx, msg.ZbStatus3)
 	}
 
@@ -81,7 +81,7 @@ func (h *DiscoveryHandler) HandleMessage(ctx context.Context, msgCtx *MessageCon
 }
 
 // handleZbStatus1 processes initial discovery response with short addresses
-func (h *DiscoveryHandler) handleZbStatus1(ctx context.Context, msgCtx *MessageContext, devices []ZbStatus1DeviceEntry) error {
+func (h *DiscoveryHandler) handleZbStatus1(_ context.Context, msgCtx *MessageContext, devices []ZbStatus1DeviceEntry) error {
 	h.log.Info("Processing ZbStatus1 discovery",
 		zap.String("bridge", msgCtx.BridgeName),
 		zap.Int("deviceCount", len(devices)))
@@ -185,7 +185,9 @@ func (h *DiscoveryHandler) createOrUpdateDevice(ctx context.Context, msgCtx *Mes
 }
 
 // updateExistingDevice updates an existing Device CR
-func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *mqttv1alpha1.Device, device *ZbStatus3DeviceEntry, msgCtx *MessageContext) error {
+//
+//nolint:gocyclo // Complex update logic is necessary for handling all device fields
+func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *mqttv1alpha1.Device, device *ZbStatus3DeviceEntry, _ *MessageContext) error {
 	h.log.Debug("Updating existing device",
 		zap.String("device", existing.Name),
 		zap.String("ieeeAddr", device.IEEEAddr))

@@ -204,7 +204,9 @@ func main() {
 		setupLog.Error(err, "Failed to create zap logger")
 		os.Exit(1)
 	}
-	defer zapLog.Sync()
+	defer func() {
+		_ = zapLog.Sync()
+	}()
 
 	mqttManager := mqtt.NewBridgeManager(mgr.GetClient(), zapLog)
 	setupLog.Info("Created MQTT BridgeManager")

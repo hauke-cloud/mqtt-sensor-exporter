@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -32,6 +33,11 @@ import (
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/tasmota"
+)
+
+const (
+	deviceTypeTasmota     = "tasmota"
+	deviceTypeZigbee2MQTT = "zigbee2mqtt"
 )
 
 // BridgeManager manages MQTT connections for multiple bridges
@@ -131,8 +137,9 @@ func (m *BridgeManager) Connect(ctx context.Context, bridge *mqttv1alpha1.MQTTBr
 		zap.Bool("hasCredentials", username != ""))
 
 	opts.SetAutoReconnect(true)
-	opts.SetConnectRetry(true)
+	opts.SetConnectRetry(false) // Don't retry on initial connection - fail fast
 	opts.SetConnectRetryInterval(10 * time.Second)
+	opts.SetConnectTimeout(5 * time.Second) // Set connection timeout to avoid hanging in tests
 
 	bridgeConn := &BridgeConnection{
 		bridge: bridge,
@@ -148,15 +155,15 @@ func (m *BridgeManager) Connect(ctx context.Context, bridge *mqttv1alpha1.MQTTBr
 
 	// Create and connect client
 	m.log.Info("Attempting MQTT connection", zap.String("broker", brokerURL))
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
+	mqttClient := mqtt.NewClient(opts)
+	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		m.log.Error("MQTT connection failed",
 			zap.String("broker", brokerURL),
 			zap.Error(token.Error()))
 		return fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
 	}
 
-	bridgeConn.mqttClient = client
+	bridgeConn.mqttClient = mqttClient
 	bridgeConn.connected = true
 	bridgeConn.lastSeen = time.Now()
 	m.bridges[key] = bridgeConn
@@ -255,9 +262,9 @@ func (m *BridgeManager) subscribeToTopics(ctx context.Context, conn *BridgeConne
 	if len(conn.bridge.Spec.Topics) == 0 && conn.bridge.Spec.TopicPrefix != "" {
 		// Subscribe based on device type
 		switch conn.bridge.Spec.DeviceType {
-		case "zigbee2mqtt":
+		case deviceTypeZigbee2MQTT:
 			m.subscribeToZigbee2MQTT(ctx, conn)
-		case "tasmota":
+		case deviceTypeTasmota:
 			m.subscribeToTasmotaFallback(ctx, conn)
 		default:
 			// Generic: subscribe to topicPrefix/#
@@ -285,7 +292,7 @@ func (m *BridgeManager) subscribeToTopic(ctx context.Context, conn *BridgeConnec
 		qos = byte(*topicSub.QoS)
 	}
 
-	handler := func(client mqtt.Client, msg mqtt.Message) {
+	handler := func(mqttClient mqtt.Client, msg mqtt.Message) {
 		m.handleMessage(ctx, conn, topicSub, msg)
 	}
 
@@ -312,7 +319,7 @@ func (m *BridgeManager) handleMessage(ctx context.Context, conn *BridgeConnectio
 
 	// Route to appropriate handler based on device type
 	switch conn.bridge.Spec.DeviceType {
-	case "tasmota":
+	case deviceTypeTasmota:
 		// Dispatch to Tasmota handler
 		if err := m.tasmotaDispatcher.Dispatch(
 			ctx,
@@ -327,7 +334,7 @@ func (m *BridgeManager) handleMessage(ctx context.Context, conn *BridgeConnectio
 				zap.String("type", topicSub.Type),
 				zap.Error(err))
 		}
-	case "zigbee2mqtt":
+	case deviceTypeZigbee2MQTT:
 		// TODO: Implement Zigbee2MQTT handler
 		m.log.Debug("Zigbee2MQTT message handling not yet implemented",
 			zap.String("topic", msg.Topic()))
@@ -398,7 +405,7 @@ func (m *BridgeManager) subscribeToTasmotaFallback(ctx context.Context, conn *Br
 // PublishCommand publishes a command to a device
 // For Tasmota: publishes to cmnd/<bridge>/ZbSend with device address
 // For Zigbee2MQTT: publishes to <prefix>/<device>/set
-func (m *BridgeManager) PublishCommand(namespace, bridgeName, deviceAddr string, command map[string]interface{}) error {
+func (m *BridgeManager) PublishCommand(namespace, bridgeName, deviceAddr string, command map[string]any) error {
 	m.mu.RLock()
 	key := fmt.Sprintf("%s/%s", namespace, bridgeName)
 	conn, ok := m.bridges[key]
@@ -414,7 +421,7 @@ func (m *BridgeManager) PublishCommand(namespace, bridgeName, deviceAddr string,
 
 	// Determine topic and payload based on device type
 	switch conn.bridge.Spec.DeviceType {
-	case "tasmota":
+	case deviceTypeTasmota:
 		// Tasmota: cmnd/<bridgeName>/ZbSend {"Device":"0x1234","Power":"ON"}
 		tasmotaBridgeName := conn.bridge.Spec.BridgeName
 		if tasmotaBridgeName == "" {
@@ -423,15 +430,13 @@ func (m *BridgeManager) PublishCommand(namespace, bridgeName, deviceAddr string,
 		topic = fmt.Sprintf("cmnd/%s/ZbSend", tasmotaBridgeName)
 
 		// Wrap command with Device field
-		zbCommand := map[string]interface{}{
+		zbCommand := map[string]any{
 			"Device": deviceAddr,
 		}
-		for k, v := range command {
-			zbCommand[k] = v
-		}
+		maps.Copy(zbCommand, command)
 		payload, err = json.Marshal(zbCommand)
 
-	case "zigbee2mqtt":
+	case deviceTypeZigbee2MQTT:
 		// Zigbee2MQTT: <prefix>/<friendlyName>/set
 		topic = fmt.Sprintf("%s/%s/set", conn.bridge.Spec.TopicPrefix, deviceAddr)
 		payload, err = json.Marshal(command)

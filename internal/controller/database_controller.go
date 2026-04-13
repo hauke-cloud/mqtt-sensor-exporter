@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
 )
@@ -44,21 +44,21 @@ type DatabaseReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+	logger := ctrllog.FromContext(ctx)
 
 	// Fetch the Database instance
 	database := &mqttv1alpha1.Database{}
 	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
 		if errors.IsNotFound(err) {
 			// Database was deleted
-			log.Info("Database resource not found, ignoring")
+			logger.Info("Database resource not found, ignoring")
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "Failed to get Database")
+		logger.Error(err, "Failed to get Database")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("Reconciling Database",
+	logger.Info("Reconciling Database",
 		"database", database.Name,
 		"host", database.Spec.Host,
 		"supportedSensorTypes", database.Spec.SupportedSensorTypes)
@@ -71,10 +71,10 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		database.Status.LastConnectedTime = &now
 
 		if err := r.Status().Update(ctx, database); err != nil {
-			log.Error(err, "Failed to update Database status")
+			logger.Error(err, "Failed to update Database status")
 			return ctrl.Result{}, err
 		}
-		log.Info("Database status updated to Initializing", "database", database.Name)
+		logger.Info("Database status updated to Initializing", "database", database.Name)
 	}
 
 	// TODO: Implement actual database connection logic
@@ -84,10 +84,10 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		database.Status.Message = "Database manager not yet implemented - waiting for GORM integration"
 
 		if err := r.Status().Update(ctx, database); err != nil {
-			log.Error(err, "Failed to update Database status")
+			logger.Error(err, "Failed to update Database status")
 			return ctrl.Result{}, err
 		}
-		log.Info("Database status updated", "database", database.Name, "state", database.Status.ConnectionState)
+		logger.Info("Database status updated", "database", database.Name, "state", database.Status.ConnectionState)
 	}
 
 	return ctrl.Result{}, nil

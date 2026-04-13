@@ -40,7 +40,7 @@ type ZigbeeDevice struct {
 	Occupancy         *bool    `json:"Occupancy,omitempty"`
 	WaterLeak         *bool    `json:"WaterLeak,omitempty"`
 	// Additional fields stored as raw data
-	Additional map[string]interface{} `json:"-"`
+	Additional map[string]any `json:"-"`
 }
 
 // StatusMessage represents a Tasmota status/result message

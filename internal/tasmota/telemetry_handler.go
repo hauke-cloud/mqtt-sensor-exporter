@@ -136,7 +136,7 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 	}
 
 	// Build measurement data
-	measurements := make(map[string]interface{})
+	measurements := make(map[string]any)
 
 	if zbDevice.Temperature != nil {
 		measurements["temperature"] = *zbDevice.Temperature
