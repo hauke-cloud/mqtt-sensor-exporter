@@ -1,0 +1,122 @@
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  name: irrigation-db
+  namespace: default
+spec:
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "irrigation_sensors"
+  username: "irrigation_writer"
+  passwordSecretRef:
+    name: irrigation-db-credentials
+  sslMode: "require"
+  # This database handles irrigation-related sensor types
+  supportedSensorTypes:
+    - "irrigation"
+  maxConnections: 10
+  batchSize: 100
+  batchTimeout: 10
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  name: power-solar-db
+  namespace: default
+spec:
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "energy_sensors"
+  username: "energy_writer"
+  passwordSecretRef:
+    name: energy-db-credentials
+  sslMode: "verify-full"
+  caSecretRef:
+    name: energy-db-ca
+  # This database handles both power and solar sensor types
+  # GORM will create separate tables for each type
+  supportedSensorTypes:
+    - "power"
+    - "solar"
+  maxConnections: 20
+  batchSize: 200
+  batchTimeout: 5
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  name: climate-db
+  namespace: default
+spec:
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "climate_sensors"
+  username: "climate_writer"
+  # Using client certificate authentication
+  clientCertSecretRef:
+    name: climate-db-client-cert
+  sslMode: "verify-full"
+  caSecretRef:
+    name: climate-db-ca
+  # This database handles all climate-related sensors
+  supportedSensorTypes:
+    - "temperature"
+    - "humidity"
+    - "pressure"
+  maxConnections: 15
+  batchSize: 150
+  batchTimeout: 10
+---
+# Example Secrets for reference
+apiVersion: v1
+kind: Secret
+metadata:
+  name: irrigation-db-credentials
+type: Opaque
+stringData:
+  password: "irrigation_password_here"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: energy-db-credentials
+type: Opaque
+stringData:
+  password: "energy_password_here"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: energy-db-ca
+type: Opaque
+stringData:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    ... CA certificate here ...
+    -----END CERTIFICATE-----
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: climate-db-client-cert
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+    ... client certificate here ...
+    -----END CERTIFICATE-----
+  tls.key: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ... client key here ...
+    -----END RSA PRIVATE KEY-----
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: climate-db-ca
+type: Opaque
+stringData:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    ... CA certificate here ...
+    -----END CERTIFICATE-----

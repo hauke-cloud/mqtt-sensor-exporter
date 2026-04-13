@@ -1,0 +1,134 @@
+name: "Kaniko Build and Push"
+description: "Build and push multi-platform container images using Kaniko"
+author: "Your Name"
+
+inputs:
+  context:
+    description: "Build context path"
+    required: false
+    default: "."
+  dockerfile:
+    description: "Path to Dockerfile"
+    required: false
+    default: "Dockerfile"
+  registry:
+    description: "Container registry URL"
+    required: true
+  image-name:
+    description: "Image name (without registry)"
+    required: true
+  tags:
+    description: "Image tags (newline separated)"
+    required: true
+  platform:
+    description: "Target platform (e.g., linux/amd64)"
+    required: true
+  tag-suffix:
+    description: "Suffix to append to each tag"
+    required: false
+    default: ""
+  build-args:
+    description: "Build arguments (newline separated KEY=VALUE pairs)"
+    required: false
+    default: ""
+  cache:
+    description: "Enable layer caching"
+    required: false
+    default: "true"
+  cache-repo:
+    description: "Cache repository URL"
+    required: false
+    default: ""
+  push:
+    description: "Push image to registry"
+    required: false
+    default: "true"
+  kaniko-version:
+    description: "Kaniko executor version"
+    required: false
+    default: "v1.23.0"
+  kaniko-image:
+    description: "Kaniko executor image"
+    required: false
+    default: "gcr.io/kaniko-project/executor"
+  registry-username:
+    description: "Registry username"
+    required: true
+  registry-password:
+    description: "Registry password"
+    required: true
+
+outputs:
+  digest:
+    description: "Image digest"
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare Kaniko arguments
+      id: prepare
+      shell: bash
+      run: |
+        # Prepare destination arguments
+        DESTINATION_ARGS=""
+        while IFS= read -r tag; do
+          if [ -n "$tag" ]; then
+            if [ -n "${{ inputs.tag-suffix }}" ]; then
+              DESTINATION_ARGS="${DESTINATION_ARGS} --destination=${tag}-${{ inputs.tag-suffix }}"
+            else
+              DESTINATION_ARGS="${DESTINATION_ARGS} --destination=${tag}"
+            fi
+          fi
+        done <<< "${{ inputs.tags }}"
+        echo "destinations=${DESTINATION_ARGS}" >> $GITHUB_OUTPUT
+
+        # Prepare build arguments
+        BUILD_ARGS=""
+        while IFS= read -r arg; do
+          if [ -n "$arg" ]; then
+            BUILD_ARGS="${BUILD_ARGS} --build-arg=${arg}"
+          fi
+        done <<< "${{ inputs.build-args }}"
+        echo "build-args=${BUILD_ARGS}" >> $GITHUB_OUTPUT
+
+        # Prepare cache arguments
+        CACHE_ARGS=""
+        if [ "${{ inputs.cache }}" = "true" ]; then
+          CACHE_ARGS="--cache=true"
+          if [ -n "${{ inputs.cache-repo }}" ]; then
+            CACHE_ARGS="${CACHE_ARGS} --cache-repo=${{ inputs.cache-repo }}"
+          fi
+        fi
+        echo "cache-args=${CACHE_ARGS}" >> $GITHUB_OUTPUT
+
+        # Prepare push argument
+        PUSH_ARG=""
+        if [ "${{ inputs.push }}" != "true" ]; then
+          PUSH_ARG="--no-push"
+        fi
+        echo "push-arg=${PUSH_ARG}" >> $GITHUB_OUTPUT
+
+    - name: Prepare auth token
+      id: auth
+      shell: bash
+      run: |
+        AUTH_TOKEN=$(echo -n ${{ inputs.registry-username }}:${{ inputs.registry-password }} | base64)
+        echo "token=${AUTH_TOKEN}" >> $GITHUB_OUTPUT
+
+    - name: Build and push with Kaniko
+      id: build
+      uses: docker://gcr.io/kaniko-project/executor:v1.23.0-debug
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        AUTH_TOKEN: ${{ steps.auth.outputs.token }}
+        CONTEXT_PATH: ${{ inputs.context }}
+        DOCKERFILE_PATH: ${{ inputs.dockerfile }}
+        DESTINATIONS: ${{ steps.prepare.outputs.destinations }}
+        BUILD_ARGS: ${{ steps.prepare.outputs.build-args }}
+        PLATFORM: ${{ inputs.platform }}
+        CACHE_ARGS: ${{ steps.prepare.outputs.cache-args }}
+        PUSH_ARG: ${{ steps.prepare.outputs.push-arg }}
+      with:
+        entrypoint: /bin/sh
+        args: -c "mkdir -p /kaniko/.docker && printf '{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}' \"$REGISTRY\" \"$AUTH_TOKEN\" > /kaniko/.docker/config.json && /kaniko/executor --context=/github/workspace/$CONTEXT_PATH --dockerfile=/github/workspace/$DOCKERFILE_PATH $DESTINATIONS $BUILD_ARGS --custom-platform=$PLATFORM --snapshot-mode=redo --compressed-caching=false $CACHE_ARGS $PUSH_ARG --digest-file=/tmp/digest"

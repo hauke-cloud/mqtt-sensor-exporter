@@ -1,0 +1,35 @@
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  labels:
+    app.kubernetes.io/name: mqtt-sensor-exporter
+    app.kubernetes.io/managed-by: kustomize
+  name: database-sample
+spec:
+  # Database connection details
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "sensors"
+  username: "sensor_writer"
+  
+  # Authentication with password
+  passwordSecretRef:
+    name: timescaledb-credentials
+  
+  # SSL configuration
+  sslMode: "require"
+  
+  # Supported sensor types - this database handles multiple types
+  # GORM will create appropriate tables for each type
+  supportedSensorTypes:
+    - "irrigation"  # Valves, moisture sensors
+    - "temperature" # Temperature sensors
+    - "humidity"    # Humidity sensors
+  
+  # Connection pool settings
+  maxConnections: 10
+  minConnections: 2
+  
+  # Batching settings for performance
+  batchSize: 100
+  batchTimeout: 10
