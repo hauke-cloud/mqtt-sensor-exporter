@@ -6,7 +6,7 @@ on:
       - main
       - develop
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
       - main
@@ -15,7 +15,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GO_VERSION: '1.25'
+  GO_VERSION: "1.25"
 
 jobs:
   test:
@@ -74,7 +74,7 @@ jobs:
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.8.0
           args: --timeout=5m
@@ -193,7 +193,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          
+
           # Extract version-specific changes from CHANGES.md if it exists
           if [ -f CHANGES.md ]; then
             echo "Extracting changelog for $VERSION"
@@ -221,29 +221,29 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Create/update gh-pages branch with Helm index
           git fetch origin gh-pages || git checkout --orphan gh-pages || true
           git checkout gh-pages || git checkout --orphan gh-pages
-          
+
           # Download existing charts if gh-pages exists
           if [ -d charts ]; then
             echo "Charts directory exists"
           else
             mkdir -p charts
           fi
-          
+
           # Copy new chart
           cp dist/*.tgz charts/
-          
+
           # Generate index
           helm repo index charts --url https://github.com/${{ github.repository }}/releases/download/${{ steps.release_notes.outputs.VERSION }}
-          
+
           # Commit and push
           git add charts/
           git commit -m "Update Helm chart for ${{ steps.release_notes.outputs.VERSION }}" || true
           git push origin gh-pages || echo "No changes to push"
-          
+
           # Return to original branch
           git checkout -
 
@@ -263,11 +263,11 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: "sarif"
+          output: "trivy-results.sarif"
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"
