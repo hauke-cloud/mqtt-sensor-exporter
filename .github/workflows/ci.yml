@@ -42,11 +42,11 @@ jobs:
             exit 1
           fi
 
+      - name: Generate manifests and copy CRDs
+        run: make manifests generate copy-crds
+
       - name: Run go vet
         run: go vet ./...
-
-      - name: Generate manifests
-        run: make manifests generate
 
       - name: Run tests
         run: make test
