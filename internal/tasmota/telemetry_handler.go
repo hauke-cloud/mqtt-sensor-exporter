@@ -25,19 +25,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
 // TelemetryHandler processes Tasmota telemetry messages
 type TelemetryHandler struct {
-	client client.Client
-	log    *zap.Logger
+	client    client.Client
+	log       *zap.Logger
+	dbManager *database.Manager
 }
 
 // NewTelemetryHandler creates a new telemetry handler
-func NewTelemetryHandler(c client.Client, log *zap.Logger) *TelemetryHandler {
+func NewTelemetryHandler(c client.Client, log *zap.Logger, dbManager *database.Manager) *TelemetryHandler {
 	return &TelemetryHandler{
-		client: c,
-		log:    log,
+		client:    c,
+		log:       log,
+		dbManager: dbManager,
 	}
 }
 
@@ -113,6 +116,81 @@ func (h *TelemetryHandler) updateDevice(ctx context.Context, device *mqttv1alpha
 	h.log.Debug("Updated Device CR",
 		zap.String("device", device.Name),
 		zap.String("ieee_addr", device.Spec.IEEEAddr))
+
+	// Store measurement to database if device has a sensorType configured
+	if device.Spec.SensorType != "" && h.dbManager != nil {
+		if err := h.storeMeasurement(ctx, device, zbDevice); err != nil {
+			h.log.Error("Failed to store measurement to database",
+				zap.String("device", device.Name),
+				zap.String("sensorType", device.Spec.SensorType),
+				zap.Error(err))
+			// Don't fail the update if database storage fails
+		}
+	}
+
+	return nil
+}
+
+// storeMeasurement stores the measurement to the database
+func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1alpha1.Device, zbDevice *ZigbeeDevice) error {
+	// Build payload from Zigbee device data
+	payload := make(map[string]any)
+
+	// Always include device identifiers
+	if device.Status.ShortAddr != "" {
+		payload["Device"] = device.Status.ShortAddr
+	}
+	if device.Spec.FriendlyName != "" {
+		payload["Name"] = device.Spec.FriendlyName
+	} else if zbDevice.Name != "" {
+		payload["Name"] = zbDevice.Name
+	}
+
+	// Add measurements
+	if zbDevice.Temperature != nil {
+		payload["Temperature"] = *zbDevice.Temperature
+	}
+	if zbDevice.Humidity != nil {
+		payload["Humidity"] = *zbDevice.Humidity
+	}
+	if zbDevice.Pressure != nil {
+		payload["Pressure"] = *zbDevice.Pressure
+	}
+	if zbDevice.Voltage != nil {
+		payload["Voltage"] = *zbDevice.Voltage
+	}
+	if zbDevice.BatteryPercentage != nil {
+		payload["BatteryPercentage"] = float64(*zbDevice.BatteryPercentage)
+	}
+	if zbDevice.Power != nil {
+		payload["Power"] = *zbDevice.Power
+	}
+	if zbDevice.LinkQuality != nil {
+		payload["LinkQuality"] = float64(*zbDevice.LinkQuality)
+	}
+	if zbDevice.Endpoint != nil {
+		payload["Endpoint"] = float64(*zbDevice.Endpoint)
+	}
+	if zbDevice.Contact != nil {
+		payload["Contact"] = *zbDevice.Contact
+	}
+	if zbDevice.Occupancy != nil {
+		payload["Occupancy"] = *zbDevice.Occupancy
+	}
+	if zbDevice.WaterLeak != nil {
+		payload["WaterLeak"] = *zbDevice.WaterLeak
+	}
+
+	// Store to database
+	err := h.dbManager.StoreMeasurement(ctx, device.Name, device.Spec.SensorType, payload)
+	if err != nil {
+		return err
+	}
+
+	h.log.Debug("Stored measurement to database",
+		zap.String("device", device.Name),
+		zap.String("sensorType", device.Spec.SensorType),
+		zap.Int("payloadSize", len(payload)))
 
 	return nil
 }

@@ -22,6 +22,8 @@ import (
 
 	"go.uber.org/zap"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
 // MessageHandler is the interface for all Tasmota message handlers
@@ -35,22 +37,24 @@ type Dispatcher struct {
 	log           *zap.Logger
 	handlers      map[string]MessageHandler
 	mqttPublisher MQTTPublisher
+	dbManager     *database.Manager
 }
 
 // NewDispatcher creates a new Tasmota message dispatcher
-func NewDispatcher(c client.Client, log *zap.Logger, mqttPublisher MQTTPublisher) *Dispatcher {
+func NewDispatcher(c client.Client, log *zap.Logger, mqttPublisher MQTTPublisher, dbManager *database.Manager) *Dispatcher {
 	d := &Dispatcher{
 		client:        c,
 		log:           log.With(zap.String("component", "tasmota-dispatcher")),
 		handlers:      make(map[string]MessageHandler),
 		mqttPublisher: mqttPublisher,
+		dbManager:     dbManager,
 	}
 
 	// Create discovery handler first (needed by status handler)
 	discoveryHandler := NewDiscoveryHandler(c, log.With(zap.String("handler", "discovery")), mqttPublisher)
 
 	// Register default handlers
-	d.RegisterHandler("telemetry", NewTelemetryHandler(c, log.With(zap.String("handler", "telemetry"))))
+	d.RegisterHandler("telemetry", NewTelemetryHandler(c, log.With(zap.String("handler", "telemetry")), dbManager))
 	d.RegisterHandler("status", NewStatusHandler(c, log.With(zap.String("handler", "status")), discoveryHandler))
 	d.RegisterHandler("state", NewStateHandler(c, log.With(zap.String("handler", "state"))))
 	d.RegisterHandler("info", NewInfoHandler(c, log.With(zap.String("handler", "info"))))

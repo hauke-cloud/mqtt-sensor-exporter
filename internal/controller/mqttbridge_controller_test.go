@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
 )
 
@@ -75,7 +76,8 @@ var _ = Describe("MQTTBridge Controller", func() {
 			By("Reconciling the created resource")
 			// Create a logger and MQTT manager for the test
 			testLogger, _ := zap.NewDevelopment()
-			mqttManager := mqtt.NewBridgeManager(k8sClient, testLogger)
+			dbManager := database.NewManager(k8sClient, testLogger)
+			mqttManager := mqtt.NewBridgeManager(k8sClient, testLogger, dbManager)
 
 			controllerReconciler := &MQTTBridgeReconciler{
 				Client:      k8sClient,

@@ -20,20 +20,23 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
 // DatabaseReconciler reconciles a Database object
 type DatabaseReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	Log       *zap.Logger
+	DBManager *database.Manager
 }
 
 // +kubebuilder:rbac:groups=mqtt.hauke.cloud,resources=databases,verbs=get;list;watch;create;update;patch;delete
@@ -44,51 +47,58 @@ type DatabaseReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := ctrllog.FromContext(ctx)
+	log := r.Log.With(
+		zap.String("namespace", req.Namespace),
+		zap.String("name", req.Name))
 
 	// Fetch the Database instance
-	database := &mqttv1alpha1.Database{}
-	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
+	db := &mqttv1alpha1.Database{}
+	if err := r.Get(ctx, req.NamespacedName, db); err != nil {
 		if errors.IsNotFound(err) {
-			// Database was deleted
-			logger.Info("Database resource not found, ignoring")
+			// Database was deleted - disconnect
+			log.Info("Database resource deleted, cleaning up connection")
+			r.DBManager.Disconnect(req.Namespace, req.Name)
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get Database")
+		log.Error("Failed to get Database", zap.Error(err))
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("Reconciling Database",
-		"database", database.Name,
-		"host", database.Spec.Host,
-		"supportedSensorTypes", database.Spec.SupportedSensorTypes)
+	log.Info("Reconciling Database",
+		zap.String("database", db.Name),
+		zap.String("host", db.Spec.Host),
+		zap.Strings("supportedSensorTypes", db.Spec.SupportedSensorTypes))
 
-	// Update status to indicate we're initializing
-	if database.Status.ConnectionState == "" {
-		database.Status.ConnectionState = "Initializing"
-		database.Status.Message = "Database controller is initializing connection"
-		now := metav1.NewTime(time.Now())
-		database.Status.LastConnectedTime = &now
+	// Connect to database
+	if err := r.DBManager.Connect(ctx, db); err != nil {
+		log.Error("Failed to connect to database", zap.Error(err))
 
-		if err := r.Status().Update(ctx, database); err != nil {
-			logger.Error(err, "Failed to update Database status")
-			return ctrl.Result{}, err
+		// Update status to error
+		db.Status.ConnectionState = "Error"
+		db.Status.Message = err.Error()
+		if statusErr := r.Status().Update(ctx, db); statusErr != nil {
+			log.Error("Failed to update status", zap.Error(statusErr))
 		}
-		logger.Info("Database status updated to Initializing", "database", database.Name)
+
+		// Retry after 30 seconds
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, err
 	}
 
-	// TODO: Implement actual database connection logic
-	// For now, just mark as ready so users can see the resource is being managed
-	if database.Status.ConnectionState == "Initializing" {
-		database.Status.ConnectionState = "Disconnected"
-		database.Status.Message = "Database manager not yet implemented - waiting for GORM integration"
+	// Update status to connected
+	db.Status.ConnectionState = "Connected"
+	db.Status.Message = "Successfully connected to database"
+	now := metav1.NewTime(time.Now())
+	db.Status.LastConnectedTime = &now
 
-		if err := r.Status().Update(ctx, database); err != nil {
-			logger.Error(err, "Failed to update Database status")
-			return ctrl.Result{}, err
-		}
-		logger.Info("Database status updated", "database", database.Name, "state", database.Status.ConnectionState)
+	if err := r.Status().Update(ctx, db); err != nil {
+		log.Error("Failed to update status", zap.Error(err))
+		return ctrl.Result{}, err
 	}
+
+	log.Info("Database connected successfully",
+		zap.String("database", db.Name),
+		zap.String("host", db.Spec.Host),
+		zap.Strings("supportedSensorTypes", db.Spec.SupportedSensorTypes))
 
 	return ctrl.Result{}, nil
 }

@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/tasmota"
 )
 
@@ -47,6 +48,7 @@ type BridgeManager struct {
 	bridges           map[string]*BridgeConnection
 	mu                sync.RWMutex
 	tasmotaDispatcher *tasmota.Dispatcher
+	dbManager         *database.Manager
 }
 
 // BridgeConnection represents a single MQTT bridge connection
@@ -59,14 +61,15 @@ type BridgeConnection struct {
 }
 
 // NewBridgeManager creates a new MQTT bridge manager
-func NewBridgeManager(c client.Client, log *zap.Logger) *BridgeManager {
+func NewBridgeManager(c client.Client, log *zap.Logger, dbManager *database.Manager) *BridgeManager {
 	m := &BridgeManager{
-		client:  c,
-		log:     log,
-		bridges: make(map[string]*BridgeConnection),
+		client:    c,
+		log:       log,
+		bridges:   make(map[string]*BridgeConnection),
+		dbManager: dbManager,
 	}
-	// Create dispatcher with self as MQTT publisher
-	m.tasmotaDispatcher = tasmota.NewDispatcher(c, log.With(zap.String("component", "tasmota")), m)
+	// Create dispatcher with self as MQTT publisher and database manager
+	m.tasmotaDispatcher = tasmota.NewDispatcher(c, log.With(zap.String("component", "tasmota")), m, dbManager)
 	return m
 }
 

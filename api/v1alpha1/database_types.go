@@ -72,7 +72,7 @@ type DatabaseSpec struct {
 	// SupportedSensorTypes specifies which sensor types this database can handle
 	// Devices with matching sensorType will have their measurements stored in this database
 	// Each sensor type will have its own GORM handler and table(s)
-	// Supported types: "irrigation", "power", "solar", "temperature", "humidity", "pressure"
+	// Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure"
 	// +kubebuilder:validation:MinItems=1
 	// +optional
 	SupportedSensorTypes []string `json:"supportedSensorTypes,omitempty"`

@@ -13,7 +13,8 @@ spec:
   sslMode: "require"
   # This database handles irrigation-related sensor types
   supportedSensorTypes:
-    - "irrigation"
+    - "valve"      # Water valves -> valve_measurements table
+    - "moisture"   # Soil moisture sensors -> moisture_measurements table
   maxConnections: 10
   batchSize: 100
   batchTimeout: 10

@@ -22,7 +22,8 @@ spec:
   # Supported sensor types - this database handles multiple types
   # GORM will create appropriate tables for each type
   supportedSensorTypes:
-    - "irrigation"  # Valves, moisture sensors
+    - "valve"       # Water valves
+    - "moisture"    # Soil moisture sensors
     - "temperature" # Temperature sensors
     - "humidity"    # Humidity sensors
   

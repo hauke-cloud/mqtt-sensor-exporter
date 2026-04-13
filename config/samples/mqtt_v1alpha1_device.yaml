@@ -15,7 +15,7 @@ spec:
   ieeeAddr: "0x00124b001234abcd"
   
   # Sensor type - determines which database to use for measurements
-  # Supported: irrigation, power, solar, temperature, humidity, pressure
+  # Supported: valve, moisture, power, solar, temperature, humidity, pressure
   sensorType: "temperature"
   
   # Optional: custom table name for measurements

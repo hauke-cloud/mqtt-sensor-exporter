@@ -37,14 +37,14 @@ type DeviceSpec struct {
 
 	// SensorType specifies what type of measurements this device provides
 	// This determines which database and GORM handler to use for storing data
-	// Supported types: "irrigation", "power", "solar", "temperature", "humidity", "pressure"
-	// +kubebuilder:validation:Enum=irrigation;power;solar;temperature;humidity;pressure
+	// Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure"
+	// +kubebuilder:validation:Enum=valve;moisture;power;solar;temperature;humidity;pressure
 	// +optional
 	SensorType string `json:"sensorType,omitempty"`
 
 	// MeasurementTable specifies the database table name for storing measurements
 	// If not specified, defaults to a table name based on sensorType
-	// Example: "valves" for water valve devices in irrigation database
+	// Example: "valve_measurements" for water valve devices, "moisture_measurements" for soil sensors
 	// +optional
 	MeasurementTable string `json:"measurementTable,omitempty"`
 

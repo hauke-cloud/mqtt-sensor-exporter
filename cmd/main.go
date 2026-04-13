@@ -43,6 +43,7 @@ import (
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/controller"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
 	// +kubebuilder:scaffold:imports
 )
@@ -208,7 +209,12 @@ func main() {
 		_ = zapLog.Sync()
 	}()
 
-	mqttManager := mqtt.NewBridgeManager(mgr.GetClient(), zapLog)
+	// Create Database Manager
+	dbManager := database.NewManager(mgr.GetClient(), zapLog.With(uberzap.String("component", "database")))
+	setupLog.Info("Created Database Manager")
+
+	// Create MQTT BridgeManager with database manager
+	mqttManager := mqtt.NewBridgeManager(mgr.GetClient(), zapLog, dbManager)
 	setupLog.Info("Created MQTT BridgeManager")
 
 	if err := (&controller.MQTTBridgeReconciler{
@@ -230,8 +236,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.DatabaseReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       zapLog.With(uberzap.String("controller", "Database")),
+		DBManager: dbManager,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Database")
 		os.Exit(1)
