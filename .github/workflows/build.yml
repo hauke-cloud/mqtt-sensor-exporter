@@ -27,6 +27,10 @@ jobs:
         with:
           go-version: "1.25"
 
+      - name: Generate manifests and code
+        run: |
+          make manifests generate
+
       - name: Run unit tests (non-controller)
         run: |
           go test -v -race -short -coverprofile=coverage-unit.out $(go list ./... | grep -v /internal/controller)
@@ -51,10 +55,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
-
-      - name: Setup envtest binaries
-        run: |
-          make setup-envtest
 
       - name: Run integration tests
         run: |
