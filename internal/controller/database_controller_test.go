@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
 var _ = Describe("Database Controller", func() {
@@ -40,11 +42,11 @@ var _ = Describe("Database Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		database := &mqttv1alpha1.Database{}
+		databaseCR := &mqttv1alpha1.Database{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Database")
-			err := k8sClient.Get(ctx, typeNamespacedName, database)
+			err := k8sClient.Get(ctx, typeNamespacedName, databaseCR)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &mqttv1alpha1.Database{
 					ObjectMeta: metav1.ObjectMeta{
@@ -73,15 +75,24 @@ var _ = Describe("Database Controller", func() {
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
+			// Create logger and database manager for reconciler
+			testLogger, err := zap.NewDevelopment()
+			Expect(err).NotTo(HaveOccurred())
+
+			dbManager := database.NewManager(k8sClient, testLogger)
+
 			controllerReconciler := &DatabaseReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+				Client:    k8sClient,
+				Scheme:    k8sClient.Scheme(),
+				Log:       testLogger,
+				DBManager: dbManager,
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(BeNil())
 			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
 			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
