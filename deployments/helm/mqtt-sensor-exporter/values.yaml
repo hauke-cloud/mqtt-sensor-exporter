@@ -47,20 +47,6 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# Resources for the kube-rbac-proxy sidecar
-kubeRbacProxy:
-  image:
-    repository: gcr.io/kubebuilder/kube-rbac-proxy
-    tag: v0.18.1
-    pullPolicy: IfNotPresent
-  resources:
-    limits:
-      cpu: 500m
-      memory: 128Mi
-    requests:
-      cpu: 5m
-      memory: 64Mi
-
 nodeSelector: {}
 
 tolerations: []
@@ -76,9 +62,7 @@ operator:
   # Metrics configuration
   metrics:
     enabled: true
-    port: 8443
-    # Secure metrics endpoint
-    secure: true
+    port: 8080
   # Health probe configuration
   health:
     port: 8081
