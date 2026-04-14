@@ -313,6 +313,11 @@ func (in *DeviceStatus) DeepCopyInto(out *DeviceStatus) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.LastPowerState != nil {
+		in, out := &in.LastPowerState, &out.LastPowerState
+		*out = new(int32)
+		**out = **in
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]v1.Condition, len(*in))

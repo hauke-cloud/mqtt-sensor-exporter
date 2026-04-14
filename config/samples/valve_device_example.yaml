@@ -1,0 +1,67 @@
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  labels:
+    app.kubernetes.io/name: mqtt-sensor-exporter
+    app.kubernetes.io/managed-by: kustomize
+    mqtt.hauke.cloud/device-type: valve
+  name: water-valve-right
+  namespace: default
+spec:
+  # Reference to the MQTT bridge (set by operator during discovery)
+  bridgeRef:
+    name: tasmota-bridge
+  
+  # IEEE address (set by operator during discovery)
+  ieeeAddr: "0xF4B3B1FFFE4EA459"
+  
+  # Sensor type - valves typically report power state and other measurements
+  sensorType: "valve"
+  
+  # User-configurable friendly name
+  friendlyName: "Water Valve Right"
+  
+  # Location metadata
+  location: "Garden"
+  room: "outside"
+  
+  # Custom labels for organization
+  metadataLabels:
+    zone: "garden"
+    type: "valve"
+    critical: "true"
+    monitored: "true"
+
+status:
+  # Short Zigbee address (set by operator)
+  shortAddr: "0x4F2E"
+  
+  # Device information (set by operator)
+  modelId: "TS0001"
+  manufacturer: "Tuya"
+  deviceType: "actuator"
+  
+  # Current power state - STABLE FIELD FOR MONITORING
+  # This persists the last known power state even when other measurements change
+  # 0 = OFF (valve closed)
+  # 1 = ON (valve open)
+  lastPowerState: 0
+  
+  # Capabilities detected from messages
+  capabilities:
+    - power
+    - temperature
+  
+  # Last measurement as JSON (includes all sensor data from latest message)
+  # This changes with every telemetry message
+  lastMeasurement: '{"power":0,"temperature":21.5,"link_quality":61}'
+  
+  # Device status
+  available: true
+  reachable: true
+  lastSeen: "2026-04-14T10:00:00Z"
+  
+  # Signal and battery
+  linkQuality: 61
+  batteryPercentage: 95
+  batteryLevel: 95

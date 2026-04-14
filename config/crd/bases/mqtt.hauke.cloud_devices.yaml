@@ -24,6 +24,10 @@ spec:
     - jsonPath: .spec.sensorType
       name: Sensor Type
       type: string
+    - jsonPath: .status.lastPowerState
+      name: Power
+      priority: 1
+      type: integer
     - jsonPath: .status.batteryPercentage
       name: Battery
       type: integer
@@ -230,6 +234,13 @@ spec:
                 description: LastMeasurement contains the most recent measurement
                   data as JSON string
                 type: string
+              lastPowerState:
+                description: |-
+                  LastPowerState contains the most recent power state for devices that support power control/sensing
+                  This field provides a stable reference for monitoring valve states and other power-controlled devices
+                  Typically 0 (off) or 1 (on), but may vary by device type
+                format: int32
+                type: integer
               lastSeen:
                 description: LastSeen is the timestamp when the device last sent data
                 format: date-time

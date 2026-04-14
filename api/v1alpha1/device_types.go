@@ -145,6 +145,12 @@ type DeviceStatus struct {
 	// +kubebuilder:validation:Maximum=255
 	LinkQuality *int32 `json:"linkQuality,omitempty"`
 
+	// LastPowerState contains the most recent power state for devices that support power control/sensing
+	// This field provides a stable reference for monitoring valve states and other power-controlled devices
+	// Typically 0 (off) or 1 (on), but may vary by device type
+	// +optional
+	LastPowerState *int32 `json:"lastPowerState,omitempty"`
+
 	// Conditions represent the current state of the Device resource.
 	// +listType=map
 	// +listMapKey=type
@@ -157,6 +163,7 @@ type DeviceStatus struct {
 // +kubebuilder:printcolumn:name="Short Addr",type=string,JSONPath=`.status.shortAddr`
 // +kubebuilder:printcolumn:name="Friendly Name",type=string,JSONPath=`.spec.friendlyName`
 // +kubebuilder:printcolumn:name="Sensor Type",type=string,JSONPath=`.spec.sensorType`
+// +kubebuilder:printcolumn:name="Power",type=integer,JSONPath=`.status.lastPowerState`,priority=1
 // +kubebuilder:printcolumn:name="Battery",type=integer,JSONPath=`.status.batteryPercentage`
 // +kubebuilder:printcolumn:name="Link Quality",type=integer,JSONPath=`.status.linkQuality`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

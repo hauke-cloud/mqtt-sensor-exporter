@@ -268,6 +268,14 @@ func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *m
 		}
 	}
 
+	if device.Power != nil {
+		powerState := int32(*device.Power)
+		if existing.Status.LastPowerState == nil || *existing.Status.LastPowerState != powerState {
+			existing.Status.LastPowerState = &powerState
+			statusUpdated = true
+		}
+	}
+
 	if updated {
 		if err := h.client.Update(ctx, existing); err != nil {
 			return fmt.Errorf("failed to update device spec: %w", err)
@@ -343,6 +351,11 @@ func (h *DiscoveryHandler) createNewDevice(ctx context.Context, msgCtx *MessageC
 	if device.LinkQuality != nil {
 		linkQuality := int32(*device.LinkQuality)
 		newDevice.Status.LinkQuality = &linkQuality
+	}
+
+	if device.Power != nil {
+		powerState := int32(*device.Power)
+		newDevice.Status.LastPowerState = &powerState
 	}
 
 	if err := h.client.Create(ctx, newDevice); err != nil {

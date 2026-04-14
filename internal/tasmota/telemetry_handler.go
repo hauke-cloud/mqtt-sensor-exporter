@@ -213,6 +213,12 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 		device.Status.BatteryLevel = &battery
 	}
 
+	// Update power state - store separately for stable monitoring
+	if zbDevice.Power != nil {
+		powerState := int32(*zbDevice.Power)
+		device.Status.LastPowerState = &powerState
+	}
+
 	// Build measurement data
 	measurements := make(map[string]any)
 
