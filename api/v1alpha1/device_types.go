@@ -42,12 +42,6 @@ type DeviceSpec struct {
 	// +optional
 	SensorType string `json:"sensorType,omitempty"`
 
-	// MeasurementTable specifies the database table name for storing measurements
-	// If not specified, defaults to a table name based on sensorType
-	// Example: "valve_measurements" for water valve devices, "moisture_measurements" for soil sensors
-	// +optional
-	MeasurementTable string `json:"measurementTable,omitempty"`
-
 	// FriendlyName is a user-configurable name for the device
 	// +optional
 	FriendlyName string `json:"friendlyName,omitempty"`
@@ -163,7 +157,6 @@ type DeviceStatus struct {
 // +kubebuilder:printcolumn:name="Short Addr",type=string,JSONPath=`.status.shortAddr`
 // +kubebuilder:printcolumn:name="Friendly Name",type=string,JSONPath=`.spec.friendlyName`
 // +kubebuilder:printcolumn:name="Sensor Type",type=string,JSONPath=`.spec.sensorType`
-// +kubebuilder:printcolumn:name="Table",type=string,JSONPath=`.spec.measurementTable`
 // +kubebuilder:printcolumn:name="Battery",type=integer,JSONPath=`.status.batteryPercentage`
 // +kubebuilder:printcolumn:name="Link Quality",type=integer,JSONPath=`.status.linkQuality`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

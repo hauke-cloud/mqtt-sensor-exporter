@@ -24,9 +24,6 @@ spec:
     - jsonPath: .spec.sensorType
       name: Sensor Type
       type: string
-    - jsonPath: .spec.measurementTable
-      name: Table
-      type: string
     - jsonPath: .status.batteryPercentage
       name: Battery
       type: integer
@@ -103,12 +100,6 @@ spec:
                 type: string
               location:
                 description: Location describes where the device is physically located
-                type: string
-              measurementTable:
-                description: |-
-                  MeasurementTable specifies the database table name for storing measurements
-                  If not specified, defaults to a table name based on sensorType
-                  Example: "valve_measurements" for water valve devices, "moisture_measurements" for soil sensors
                 type: string
               metadataLabels:
                 additionalProperties:

@@ -20,7 +20,7 @@ spec:
   
   # Optional: custom table name for measurements
   # If not specified, defaults to "<sensorType>_measurements"
-  # measurementTable: "temperature_sensors"
+
   
   # User-configurable friendly name
   friendlyName: "Living Room Temperature Sensor"
