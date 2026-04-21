@@ -43,8 +43,9 @@ type DeviceSpec struct {
 	SensorType string `json:"sensorType,omitempty"`
 
 	// Corrections is an optional value that can be used to apply correction factors to the device's measurements
+	// Values are stored as strings to ensure cross-language compatibility (e.g., "2.5", "-1.8")
 	// +optional
-	Corrections map[string]float64 `json:"corrections,omitempty"`
+	Corrections map[string]string `json:"corrections,omitempty"`
 
 	// AlertCondition defines a condition that triggers an alert when met
 	// When the condition evaluates to true, status.alert is set to true
@@ -98,8 +99,10 @@ type AlertCondition struct {
 	Operator string `json:"operator"`
 
 	// Value is the threshold value to compare against
+	// Stored as string for cross-language compatibility (e.g., "25.0", "30.5")
 	// +kubebuilder:validation:Required
-	Value float64 `json:"value"`
+	// +kubebuilder:validation:Pattern=`^-?\d+(\.\d+)?$`
+	Value string `json:"value"`
 }
 
 // DeviceStatus defines the observed state of Device.

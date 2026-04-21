@@ -17,6 +17,7 @@ limitations under the License.
 package tasmota
 
 import (
+	"strconv"
 	"strings"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
@@ -79,12 +80,18 @@ func sanitizeLabel(value string) string {
 
 // applyCorrectionToFloat applies a correction value to a float64 measurement
 // If a correction exists for the given key in the device's corrections map, it will be added to the value
+// Corrections are stored as strings and parsed to float64
 func applyCorrectionToFloat(value float64, correctionKey string, device *mqttv1alpha1.Device) float64 {
 	if device == nil || device.Spec.Corrections == nil {
 		return value
 	}
 
-	if correction, exists := device.Spec.Corrections[correctionKey]; exists {
+	if correctionStr, exists := device.Spec.Corrections[correctionKey]; exists {
+		correction, err := strconv.ParseFloat(correctionStr, 64)
+		if err != nil {
+			// If parsing fails, return original value
+			return value
+		}
 		return value + correction
 	}
 
@@ -93,12 +100,18 @@ func applyCorrectionToFloat(value float64, correctionKey string, device *mqttv1a
 
 // applyCorrectionToInt applies a correction value to an int measurement
 // If a correction exists for the given key in the device's corrections map, it will be added to the value
+// Corrections are stored as strings and parsed to float64, then converted to int
 func applyCorrectionToInt(value int, correctionKey string, device *mqttv1alpha1.Device) int {
 	if device == nil || device.Spec.Corrections == nil {
 		return value
 	}
 
-	if correction, exists := device.Spec.Corrections[correctionKey]; exists {
+	if correctionStr, exists := device.Spec.Corrections[correctionKey]; exists {
+		correction, err := strconv.ParseFloat(correctionStr, 64)
+		if err != nil {
+			// If parsing fails, return original value
+			return value
+		}
 		return value + int(correction)
 	}
 
@@ -112,13 +125,20 @@ func evaluateAlertCondition(measurementValue float64, condition *mqttv1alpha1.Al
 		return false
 	}
 
+	// Parse the threshold value from string
+	thresholdValue, err := strconv.ParseFloat(condition.Value, 64)
+	if err != nil {
+		// If parsing fails, condition cannot be evaluated
+		return false
+	}
+
 	switch condition.Operator {
 	case "above":
-		return measurementValue > condition.Value
+		return measurementValue > thresholdValue
 	case "below":
-		return measurementValue < condition.Value
+		return measurementValue < thresholdValue
 	case "is":
-		return measurementValue == condition.Value
+		return measurementValue == thresholdValue
 	default:
 		return false
 	}
