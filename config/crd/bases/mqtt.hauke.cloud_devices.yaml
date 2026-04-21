@@ -89,6 +89,11 @@ spec:
                 required:
                 - name
                 type: object
+              corrections:
+                additionalProperties: {}
+                description: Corrections is an optional value that can be used to
+                  apply correction factors to the device's measurements
+                type: object
               disabled:
                 default: false
                 description: Disabled indicates whether measurements from this device
@@ -128,6 +133,12 @@ spec:
                 - humidity
                 - pressure
                 type: string
+              thresholds:
+                additionalProperties: {}
+                description: |-
+                  Thresholds is an optional value that can be used for alerting or automation triggers
+                  This field can be used by users to set a threshold for triggering alerts or automation actions based on the device's measurements
+                type: object
             required:
             - bridgeRef
             - ieeeAddr
@@ -135,6 +146,9 @@ spec:
           status:
             description: status defines the observed state of Device
             properties:
+              alert:
+                description: Alert show if this device triggered the alert condition
+                type: boolean
               available:
                 description: Available indicates whether the device is currently reachable
                   (deprecated, use Reachable)

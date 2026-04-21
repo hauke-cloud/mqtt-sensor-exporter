@@ -131,7 +131,7 @@ func (h *TelemetryHandler) updateDevice(ctx context.Context, device *mqttv1alpha
 	return nil
 }
 
-// storeMeasurement stores the measurement to the database
+// storeMeasurement stores the measurement to the database with corrections applied
 func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1alpha1.Device, zbDevice *ZigbeeDevice) error {
 	// Build payload from Zigbee device data
 	payload := make(map[string]any)
@@ -146,27 +146,37 @@ func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1a
 		payload["Name"] = zbDevice.Name
 	}
 
-	// Add measurements
+	// Add measurements with corrections applied
 	if zbDevice.Temperature != nil {
-		payload["Temperature"] = *zbDevice.Temperature
+		correctedValue := applyCorrectionToFloat(*zbDevice.Temperature, "temperature", device)
+		payload["Temperature"] = correctedValue
 	}
 	if zbDevice.Humidity != nil {
-		payload["Humidity"] = *zbDevice.Humidity
+		correctedValue := applyCorrectionToFloat(*zbDevice.Humidity, "humidity", device)
+		payload["Humidity"] = correctedValue
 	}
 	if zbDevice.Pressure != nil {
-		payload["Pressure"] = *zbDevice.Pressure
+		correctedValue := applyCorrectionToFloat(*zbDevice.Pressure, "pressure", device)
+		payload["Pressure"] = correctedValue
 	}
 	if zbDevice.Voltage != nil {
-		payload["Voltage"] = *zbDevice.Voltage
+		correctedValue := applyCorrectionToFloat(*zbDevice.Voltage, "voltage", device)
+		payload["Voltage"] = correctedValue
 	}
 	if zbDevice.BatteryPercentage != nil {
-		payload["BatteryPercentage"] = float64(*zbDevice.BatteryPercentage)
+		// Battery percentage correction applied as int
+		correctedValue := applyCorrectionToInt(*zbDevice.BatteryPercentage, "battery_percentage", device)
+		payload["BatteryPercentage"] = float64(correctedValue)
 	}
 	if zbDevice.Power != nil {
-		payload["Power"] = *zbDevice.Power
+		// Power correction applied as int
+		correctedValue := applyCorrectionToInt(*zbDevice.Power, "power", device)
+		payload["Power"] = float64(correctedValue)
 	}
 	if zbDevice.LinkQuality != nil {
-		payload["LinkQuality"] = float64(*zbDevice.LinkQuality)
+		// Link quality correction applied as int
+		correctedValue := applyCorrectionToInt(*zbDevice.LinkQuality, "link_quality", device)
+		payload["LinkQuality"] = float64(correctedValue)
 	}
 	if zbDevice.Endpoint != nil {
 		payload["Endpoint"] = float64(*zbDevice.Endpoint)
@@ -219,23 +229,29 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 		device.Status.LastPowerState = &powerState
 	}
 
-	// Build measurement data
+	// Build measurement data with corrections applied
 	measurements := make(map[string]any)
 
 	if zbDevice.Temperature != nil {
-		measurements["temperature"] = *zbDevice.Temperature
+		correctedValue := applyCorrectionToFloat(*zbDevice.Temperature, "temperature", device)
+		measurements["temperature"] = correctedValue
 	}
 	if zbDevice.Humidity != nil {
-		measurements["humidity"] = *zbDevice.Humidity
+		correctedValue := applyCorrectionToFloat(*zbDevice.Humidity, "humidity", device)
+		measurements["humidity"] = correctedValue
 	}
 	if zbDevice.Pressure != nil {
-		measurements["pressure"] = *zbDevice.Pressure
+		correctedValue := applyCorrectionToFloat(*zbDevice.Pressure, "pressure", device)
+		measurements["pressure"] = correctedValue
 	}
 	if zbDevice.Voltage != nil {
-		measurements["voltage"] = *zbDevice.Voltage
+		correctedValue := applyCorrectionToFloat(*zbDevice.Voltage, "voltage", device)
+		measurements["voltage"] = correctedValue
 	}
 	if zbDevice.Power != nil {
-		measurements["power"] = *zbDevice.Power
+		// Power correction applied as int
+		correctedValue := applyCorrectionToInt(*zbDevice.Power, "power", device)
+		measurements["power"] = correctedValue
 	}
 	if zbDevice.Contact != nil {
 		measurements["contact"] = *zbDevice.Contact
@@ -247,7 +263,8 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 		measurements["water_leak"] = *zbDevice.WaterLeak
 	}
 	if zbDevice.LinkQuality != nil {
-		measurements["link_quality"] = *zbDevice.LinkQuality
+		correctedValue := applyCorrectionToInt(*zbDevice.LinkQuality, "link_quality", device)
+		measurements["link_quality"] = correctedValue
 	}
 	if zbDevice.Endpoint != nil {
 		measurements["endpoint"] = *zbDevice.Endpoint
@@ -285,4 +302,7 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 	}
 
 	device.Status.Capabilities = capabilities
+
+	// Evaluate alert conditions on the corrected measurements
+	device.Status.Alert = checkAlertConditions(measurements, device)
 }

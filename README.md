@@ -16,6 +16,8 @@ A Kubernetes operator that extracts measurements (moisture, water, temperature, 
 - **Automatic Discovery**: Continuously discovers devices from Zigbee2MQTT bridges
 - **Secure Credentials**: Store MQTT credentials in Kubernetes Secrets
 - **Device Management**: Enrich discovered devices with custom names, locations, and metadata
+- **Measurement Corrections**: Apply calibration corrections to fix inaccurate sensor readings
+- **Alert Conditions**: Configure automatic alerts when measurements exceed thresholds
 - **Real-time Monitoring**: Track device availability, battery levels, and signal quality
 - **Measurement Storage**: Store measurements and provide interfaces for database integration
 - **Command Support**: Send commands back to devices through MQTT
@@ -52,6 +54,8 @@ Represents a discovered sensor/actuator. The operator creates these resources au
 - `spec.location`: Physical location
 - `spec.room`: Room grouping
 - `spec.disabled`: Disable measurement processing
+- `spec.corrections`: Apply calibration corrections to measurements
+- `spec.alertCondition`: Set alert threshold for monitoring
 - `spec.metadataLabels`: Custom key-value pairs
 
 #### Database
@@ -183,6 +187,42 @@ spec:
     zone: "ground-floor"
     type: "climate"
 ```
+
+6. **Apply measurement corrections (optional):**
+
+If your sensor readings are inaccurate, you can apply corrections:
+
+```bash
+kubectl patch device <device-name> --type merge -p '
+spec:
+  corrections:
+    temperature: -2.5  # Sensor reads 2.5°C too high
+    humidity: 5.0      # Sensor reads 5% too low
+'
+```
+
+See [MEASUREMENT_CORRECTIONS.md](MEASUREMENT_CORRECTIONS.md) for detailed documentation.
+
+7. **Configure alert conditions (optional):**
+
+Set up alerts to monitor critical thresholds:
+
+```bash
+kubectl patch device <device-name> --type merge -p '
+spec:
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 25.0
+'
+```
+
+Check alert status:
+```bash
+kubectl get device <device-name> -o jsonpath='{.status.alert}'
+```
+
+See [ALERT_CONDITIONS.md](ALERT_CONDITIONS.md) for detailed documentation.
 
 ### Configuration Examples
 

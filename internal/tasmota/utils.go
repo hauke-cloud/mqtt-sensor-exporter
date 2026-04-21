@@ -16,7 +16,11 @@ limitations under the License.
 
 package tasmota
 
-import "strings"
+import (
+	"strings"
+
+	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+)
 
 // sanitizeDeviceName converts an IEEE address or device name to a valid Kubernetes resource name
 func sanitizeDeviceName(name string) string {
@@ -71,4 +75,85 @@ func sanitizeLabel(value string) string {
 	}
 
 	return value
+}
+
+// applyCorrectionToFloat applies a correction value to a float64 measurement
+// If a correction exists for the given key in the device's corrections map, it will be added to the value
+func applyCorrectionToFloat(value float64, correctionKey string, device *mqttv1alpha1.Device) float64 {
+	if device == nil || device.Spec.Corrections == nil {
+		return value
+	}
+
+	if correction, exists := device.Spec.Corrections[correctionKey]; exists {
+		return value + correction
+	}
+
+	return value
+}
+
+// applyCorrectionToInt applies a correction value to an int measurement
+// If a correction exists for the given key in the device's corrections map, it will be added to the value
+func applyCorrectionToInt(value int, correctionKey string, device *mqttv1alpha1.Device) int {
+	if device == nil || device.Spec.Corrections == nil {
+		return value
+	}
+
+	if correction, exists := device.Spec.Corrections[correctionKey]; exists {
+		return value + int(correction)
+	}
+
+	return value
+}
+
+// evaluateAlertCondition checks if an alert condition is met for a given measurement
+// Returns true if the condition is met, false otherwise
+func evaluateAlertCondition(measurementValue float64, condition *mqttv1alpha1.AlertCondition) bool {
+	if condition == nil {
+		return false
+	}
+
+	switch condition.Operator {
+	case "above":
+		return measurementValue > condition.Value
+	case "below":
+		return measurementValue < condition.Value
+	case "is":
+		return measurementValue == condition.Value
+	default:
+		return false
+	}
+}
+
+// checkAlertConditions evaluates alert conditions for all measurements in a device
+// Returns true if any alert condition is met
+func checkAlertConditions(measurements map[string]any, device *mqttv1alpha1.Device) bool {
+	if device == nil || device.Spec.AlertCondition == nil {
+		return false
+	}
+
+	condition := device.Spec.AlertCondition
+
+	// Get the measurement value for the specified measurement
+	measurementValue, exists := measurements[condition.Measurement]
+	if !exists {
+		return false
+	}
+
+	// Convert measurement value to float64
+	var floatValue float64
+	switch v := measurementValue.(type) {
+	case float64:
+		floatValue = v
+	case int:
+		floatValue = float64(v)
+	case int32:
+		floatValue = float64(v)
+	case int64:
+		floatValue = float64(v)
+	default:
+		// Can't evaluate non-numeric values
+		return false
+	}
+
+	return evaluateAlertCondition(floatValue, condition)
 }

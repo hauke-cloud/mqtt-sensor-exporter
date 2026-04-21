@@ -42,6 +42,15 @@ type DeviceSpec struct {
 	// +optional
 	SensorType string `json:"sensorType,omitempty"`
 
+	// Corrections is an optional value that can be used to apply correction factors to the device's measurements
+	// +optional
+	Corrections map[string]float64 `json:"corrections,omitempty"`
+
+	// AlertCondition defines a condition that triggers an alert when met
+	// When the condition evaluates to true, status.alert is set to true
+	// +optional
+	AlertCondition *AlertCondition `json:"alertCondition,omitempty"`
+
 	// FriendlyName is a user-configurable name for the device
 	// +optional
 	FriendlyName string `json:"friendlyName,omitempty"`
@@ -75,8 +84,30 @@ type BridgeReference struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// AlertCondition defines a condition that triggers an alert
+type AlertCondition struct {
+	// Measurement is the name of the measurement to check (e.g., "temperature", "humidity")
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Measurement string `json:"measurement"`
+
+	// Operator defines the comparison operator
+	// Supported operators: "above", "below", "is"
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=above;below;is
+	Operator string `json:"operator"`
+
+	// Value is the threshold value to compare against
+	// +kubebuilder:validation:Required
+	Value float64 `json:"value"`
+}
+
 // DeviceStatus defines the observed state of Device.
 type DeviceStatus struct {
+	// Alert show if this device triggered the alert condition
+	// +optional
+	Alert bool `json:"alert,omitempty"`
+
 	// ShortAddr is the short Zigbee address (e.g., "0x4F2E")
 	// This is used to map MQTT messages to devices
 	// +optional

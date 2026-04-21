@@ -1,0 +1,412 @@
+# Device Examples with Alert Conditions
+#
+# This file demonstrates how to configure alert conditions
+# for various types of sensors and monitoring scenarios.
+
+---
+# Example 1: High Temperature Alert
+# Greenhouse monitoring - alert when too hot
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: greenhouse-temp-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Protect plants from heat damage"
+    alert-action: "Open ventilation, activate cooling system"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x4F2E"
+  friendlyName: "Greenhouse Temperature Sensor"
+  location: "Greenhouse"
+  room: "greenhouse"
+  sensorType: "temperature"
+  
+  # Alert if temperature exceeds 30°C
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 30.0
+
+---
+# Example 2: Low Humidity Alert
+# Alert when air is too dry
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: living-room-humidity
+  namespace: default
+  annotations:
+    alert-reason: "Maintain comfortable humidity levels"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xABCD"
+  friendlyName: "Living Room Humidity Sensor"
+  location: "Living Room"
+  room: "living-room"
+  sensorType: "humidity"
+  
+  # Alert if humidity drops below 30%
+  alertCondition:
+    measurement: "humidity"
+    operator: "below"
+    value: 30.0
+
+---
+# Example 3: Refrigerator Temperature Monitoring
+# Food safety - critical temperature monitoring
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: fridge-temp-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Food safety - prevent spoilage"
+    alert-action: "Check refrigerator immediately, notify maintenance"
+    critical: "true"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x1234"
+  friendlyName: "Refrigerator Temperature Sensor"
+  location: "Kitchen"
+  room: "kitchen"
+  sensorType: "temperature"
+  
+  # Sensor reads slightly high, correct it
+  corrections:
+    temperature: -0.5
+  
+  # Alert if temperature exceeds 4°C (after correction)
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 4.0
+
+---
+# Example 4: Freezer Temperature Alert
+# Alert on freezer warming
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: freezer-temp-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Prevent food thawing"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x5678"
+  friendlyName: "Freezer Temperature Sensor"
+  location: "Garage"
+  room: "garage"
+  sensorType: "temperature"
+  
+  # Alert if temperature rises above -15°C
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: -15.0
+
+---
+# Example 5: Water Valve State Monitoring
+# Alert when valve is closed (should normally be open)
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: irrigation-valve
+  namespace: default
+  annotations:
+    alert-reason: "Irrigation should run during scheduled times"
+    alert-action: "Check valve controller, verify water supply"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x9ABC"
+  friendlyName: "Garden Irrigation Valve"
+  location: "Garden"
+  room: "outdoor"
+  sensorType: "valve"
+  
+  # Alert when valve is closed (power = 0)
+  alertCondition:
+    measurement: "power"
+    operator: "is"
+    value: 0
+
+---
+# Example 6: Low Battery Alert
+# Critical - device needs battery replacement
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: outdoor-temp-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Low battery - replace soon to avoid data loss"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xDEF0"
+  friendlyName: "Outdoor Temperature Sensor"
+  location: "Garden"
+  room: "outdoor"
+  sensorType: "temperature"
+  
+  # Alert when battery drops below 20%
+  alertCondition:
+    measurement: "battery_percentage"
+    operator: "below"
+    value: 20.0
+
+---
+# Example 7: Poor Signal Quality Alert
+# Network connectivity issue
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: basement-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Poor signal may cause data loss"
+    alert-action: "Consider relocating sensor or adding repeater"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xBEEF"
+  friendlyName: "Basement Sensor"
+  location: "Basement"
+  room: "basement"
+  sensorType: "temperature"
+  
+  # Alert when link quality drops below 40
+  alertCondition:
+    measurement: "link_quality"
+    operator: "below"
+    value: 40.0
+
+---
+# Example 8: Server Room High Temperature
+# Critical infrastructure monitoring
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: server-room-temp
+  namespace: default
+  annotations:
+    alert-reason: "Prevent equipment damage and downtime"
+    alert-action: "Check HVAC system, increase cooling capacity"
+    severity: "critical"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xCAFE"
+  friendlyName: "Server Room Temperature"
+  location: "Server Room"
+  room: "server-room"
+  sensorType: "temperature"
+  
+  # Alert if temperature exceeds 26°C
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 26.0
+
+---
+# Example 9: High Humidity in Server Room
+# Prevent condensation
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: server-room-humidity
+  namespace: default
+  annotations:
+    alert-reason: "Prevent condensation on equipment"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xFEED"
+  friendlyName: "Server Room Humidity"
+  location: "Server Room"
+  room: "server-room"
+  sensorType: "humidity"
+  
+  # Alert if humidity exceeds 60%
+  alertCondition:
+    measurement: "humidity"
+    operator: "above"
+    value: 60.0
+
+---
+# Example 10: Soil Moisture Monitoring
+# Plant watering alert
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: plant-moisture-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Plant needs watering"
+    alert-action: "Water plant or activate irrigation"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xF00D"
+  friendlyName: "Tomato Plant Moisture"
+  location: "Greenhouse Bed 1"
+  room: "greenhouse"
+  sensorType: "moisture"
+  
+  # Alert when soil moisture drops below 35%
+  # (Moisture is reported as "humidity" by the sensor)
+  alertCondition:
+    measurement: "humidity"
+    operator: "below"
+    value: 35.0
+
+---
+# Example 11: Wine Cellar Temperature
+# Precise temperature control
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: wine-cellar-temp
+  namespace: default
+  annotations:
+    alert-reason: "Maintain optimal wine storage temperature"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xWINE"
+  friendlyName: "Wine Cellar Temperature"
+  location: "Wine Cellar"
+  room: "cellar"
+  sensorType: "temperature"
+  
+  # Sensor slightly inaccurate, correct it
+  corrections:
+    temperature: -0.8
+  
+  # Alert if temperature exceeds 14°C (ideal is 12-13°C)
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 14.0
+
+---
+# Example 12: Aquarium Temperature
+# Fish safety monitoring
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: aquarium-temp-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Protect fish from temperature stress"
+    alert-action: "Check heater/chiller operation"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xFISH"
+  friendlyName: "Aquarium Temperature"
+  location: "Living Room"
+  room: "living-room"
+  sensorType: "temperature"
+  
+  # Alert if temperature drops below 24°C
+  # (Most tropical fish need 24-26°C)
+  alertCondition:
+    measurement: "temperature"
+    operator: "below"
+    value: 24.0
+
+---
+# Example 13: Pressure Drop Alert
+# Weather monitoring
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: weather-station
+  namespace: default
+  annotations:
+    alert-reason: "Rapid pressure drop may indicate storm"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xSTRM"
+  friendlyName: "Weather Station"
+  location: "Roof"
+  room: "outdoor"
+  sensorType: "pressure"
+  
+  # Alert if pressure drops below 980 hPa
+  alertCondition:
+    measurement: "pressure"
+    operator: "below"
+    value: 980.0
+
+---
+# Example 14: Combined Corrections and Alerts
+# Complete example with multiple features
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: lab-sensor
+  namespace: default
+  annotations:
+    alert-reason: "Maintain lab environmental conditions"
+    alert-action: "Adjust HVAC settings"
+  labels:
+    environment: "laboratory"
+    critical: "true"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xLAB1"
+  friendlyName: "Laboratory Environmental Sensor"
+  location: "Lab Room A"
+  room: "laboratory"
+  sensorType: "temperature"
+  
+  # Apply calibration corrections
+  corrections:
+    temperature: -1.2
+    humidity: 3.5
+  
+  # Alert on high temperature (after correction)
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: 22.0
+  
+  metadataLabels:
+    department: "research"
+    equipment-type: "environmental-monitor"
+
+---
+# Example 15: Pump Running State
+# Equipment monitoring
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-pump
+  namespace: default
+  annotations:
+    alert-reason: "Pump should be running during irrigation cycle"
+    alert-action: "Check pump power supply and controller"
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xPUMP"
+  friendlyName: "Irrigation Pump"
+  location: "Pump House"
+  room: "outdoor"
+  sensorType: "power"
+  
+  # Alert when pump is off (power = 0)
+  alertCondition:
+    measurement: "power"
+    operator: "is"
+    value: 0
