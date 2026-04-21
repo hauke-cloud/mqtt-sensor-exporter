@@ -45,20 +45,44 @@ func (MoistureMeasurement) TableName() string {
 // ValveMeasurement represents a valve sensor measurement in the database
 // This model is used by GORM to auto-create/manage the valve_measurements table
 type ValveMeasurement struct {
+	ID                    uint      `gorm:"primaryKey"`
+	Timestamp             time.Time `gorm:"index;not null"`
+	DeviceID              string    `gorm:"index;size:255;not null"` // Device CR name
+	DeviceName            string    `gorm:"size:255"`                // Friendly name from Tasmota
+	ShortAddr             string    `gorm:"index;size:50"`           // Zigbee short address
+	IEEEAddr              string    `gorm:"index;size:100"`          // IEEE address if available
+	Power                 *int      // Power state (0=off, 1=on)
+	LastValveOpenDuration *int      // Duration valve was open (seconds)
+	IrrigationStartTime   *int64    // Unix timestamp when irrigation started
+	IrrigationEndTime     *int64    // Unix timestamp when irrigation ended
+	DailyIrrigationVolume *int      // Daily irrigation volume
+	BatteryVoltage        *float64  `gorm:"type:decimal(4,2)"` // Battery voltage
+	BatteryPercentage     *int      // Battery percentage (0-100)
+	LinkQuality           *int      // Link quality (0-255)
+	Endpoint              *int      // Zigbee endpoint
+}
+
+// TableName overrides the default table name
+func (ValveMeasurement) TableName() string {
+	return "valve_measurements"
+}
+
+// WaterLevelMeasurement represents a water level sensor measurement in the database
+// This model is used by GORM to auto-create/manage the water_level_measurements table
+type WaterLevelMeasurement struct {
 	ID                uint      `gorm:"primaryKey"`
 	Timestamp         time.Time `gorm:"index;not null"`
 	DeviceID          string    `gorm:"index;size:255;not null"` // Device CR name
 	DeviceName        string    `gorm:"size:255"`                // Friendly name from Tasmota
 	ShortAddr         string    `gorm:"index;size:50"`           // Zigbee short address
 	IEEEAddr          string    `gorm:"index;size:100"`          // IEEE address if available
-	Power             *int      // Power state (0=off, 1=on)
-	BatteryVoltage    *float64  `gorm:"type:decimal(4,2)"` // Battery voltage
+	Level             *int      // Water level value (e.g., 285)
 	BatteryPercentage *int      // Battery percentage (0-100)
 	LinkQuality       *int      // Link quality (0-255)
 	Endpoint          *int      // Zigbee endpoint
 }
 
 // TableName overrides the default table name
-func (ValveMeasurement) TableName() string {
-	return "valve_measurements"
+func (WaterLevelMeasurement) TableName() string {
+	return "water_level_measurements"
 }

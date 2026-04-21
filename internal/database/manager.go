@@ -47,13 +47,14 @@ type Manager struct {
 
 // Connection represents a single database connection with its handlers
 type Connection struct {
-	database        *mqttv1alpha1.Database
-	db              *gorm.DB
-	moistureHandler *MoistureHandler
+	database          *mqttv1alpha1.Database
+	db                *gorm.DB
+	moistureHandler   *MoistureHandler
+	waterLevelHandler *WaterLevelHandler
+	valveHandler      *ValveHandler
 	// Future handlers can be added here:
-	// valveHandler    *ValveHandler
-	// powerHandler    *PowerHandler
-	// solarHandler    *SolarHandler
+	// powerHandler     *PowerHandler
+	// solarHandler     *SolarHandler
 }
 
 // NewManager creates a new database manager
@@ -163,13 +164,29 @@ func (m *Manager) Connect(ctx context.Context, database *mqttv1alpha1.Database) 
 			conn.moistureHandler = handler
 			m.log.Info("Moisture handler initialized", zap.String("database", key))
 
+		case "water_level":
+			handler := NewWaterLevelHandler(db, m.log.With(zap.String("handler", "water_level")))
+			if err := handler.Initialize(ctx); err != nil {
+				return fmt.Errorf("failed to initialize water level handler: %w", err)
+			}
+			conn.waterLevelHandler = handler
+			m.log.Info("Water level handler initialized", zap.String("database", key))
+
+		case "valve":
+			handler := NewValveHandler(db, m.log.With(zap.String("handler", "valve")))
+			if err := handler.Initialize(ctx); err != nil {
+				return fmt.Errorf("failed to initialize valve handler: %w", err)
+			}
+			conn.valveHandler = handler
+			m.log.Info("Valve handler initialized", zap.String("database", key))
+
 			// Future sensor types:
-			// case "valve":
-			//     handler, err := NewValveHandler(db, m.log.With(zap.String("handler", "valve")))
-			//     if err != nil {
-			//         return fmt.Errorf("failed to connect to database: %w", err)
+			// case "power":
+			//     handler := NewPowerHandler(db, m.log.With(zap.String("handler", "power")))
+			//     if err := handler.Initialize(ctx); err != nil {
+			//         return fmt.Errorf("failed to initialize power handler: %w", err)
 			//     }
-			//     conn.valveHandler = handler
+			//     conn.powerHandler = handler
 		}
 	}
 
@@ -229,12 +246,24 @@ func (m *Manager) StoreMeasurement(ctx context.Context, deviceID, sensorType str
 		}
 		return targetConn.moistureHandler.StoreMeasurement(ctx, deviceID, payload)
 
+	case "water_level":
+		if targetConn.waterLevelHandler == nil {
+			return fmt.Errorf("water level handler not initialized")
+		}
+		return targetConn.waterLevelHandler.StoreMeasurement(ctx, deviceID, payload)
+
+	case "valve":
+		if targetConn.valveHandler == nil {
+			return fmt.Errorf("valve handler not initialized")
+		}
+		return targetConn.valveHandler.StoreMeasurement(ctx, deviceID, payload)
+
 	// Future sensor types:
-	// case "valve":
-	//     if targetConn.valveHandler == nil {
-	//         return fmt.Errorf("valve handler not initialized")
+	// case "power":
+	//     if targetConn.powerHandler == nil {
+	//         return fmt.Errorf("power handler not initialized")
 	//     }
-	//     return targetConn.valveHandler.StoreMeasurement(ctx, deviceID, payload)
+	//     return targetConn.powerHandler.StoreMeasurement(ctx, deviceID, payload)
 
 	default:
 		return fmt.Errorf("unsupported sensor type: %s", sensorType)

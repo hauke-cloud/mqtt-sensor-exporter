@@ -17,6 +17,7 @@ limitations under the License.
 package tasmota
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -144,36 +145,83 @@ func evaluateAlertCondition(measurementValue float64, condition *mqttv1alpha1.Al
 	}
 }
 
-// checkAlertConditions evaluates alert conditions for all measurements in a device
+// checkAlertConditions evaluates alert conditions using the device's measurements map
 // Returns true if any alert condition is met
-func checkAlertConditions(measurements map[string]any, device *mqttv1alpha1.Device) bool {
+// This function uses the corrected values from status.measurements for evaluation
+func checkAlertConditions(device *mqttv1alpha1.Device) bool {
 	if device == nil || device.Spec.AlertCondition == nil {
+		return false
+	}
+
+	// Return false if measurements map is not populated yet
+	if device.Status.Measurements == nil {
 		return false
 	}
 
 	condition := device.Spec.AlertCondition
 
-	// Get the measurement value for the specified measurement
-	measurementValue, exists := measurements[condition.Measurement]
+	// Get the measurement from the status.measurements map
+	mv, exists := device.Status.Measurements[condition.Measurement]
 	if !exists {
 		return false
 	}
 
-	// Convert measurement value to float64
-	var floatValue float64
-	switch v := measurementValue.(type) {
-	case float64:
-		floatValue = v
-	case int:
-		floatValue = float64(v)
-	case int32:
-		floatValue = float64(v)
-	case int64:
-		floatValue = float64(v)
-	default:
-		// Can't evaluate non-numeric values
+	// Use corrected value if available, otherwise use raw value
+	valueStr := mv.Value
+	if mv.CorrectedValue != nil {
+		valueStr = *mv.CorrectedValue
+	}
+
+	// Parse the measurement value to float64
+	measurementValue, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		// If parsing fails, cannot evaluate (e.g., boolean values)
 		return false
 	}
 
-	return evaluateAlertCondition(floatValue, condition)
+	return evaluateAlertCondition(measurementValue, condition)
+}
+
+// formatFloat formats a float64 value as a string
+func formatFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+// formatInt formats an int value as a string
+func formatInt(value int) string {
+	return strconv.Itoa(value)
+}
+
+// formatBool formats a bool value as a string
+func formatBool(value bool) string {
+	return strconv.FormatBool(value)
+}
+
+// getFieldValue extracts a field value from ZigbeeDevice using the field name
+// Returns the dereferenced value and true if the field exists and is non-nil
+func getFieldValue(zbDevice *ZigbeeDevice, fieldName string) (any, bool) {
+	if zbDevice == nil {
+		return nil, false
+	}
+
+	// Use reflection to get field value
+	v := reflect.ValueOf(*zbDevice)
+	field := v.FieldByName(fieldName)
+
+	// Check if field exists
+	if !field.IsValid() {
+		return nil, false
+	}
+
+	// Handle pointer types
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			return nil, false
+		}
+		// Dereference pointer
+		return field.Elem().Interface(), true
+	}
+
+	// Handle non-pointer types
+	return field.Interface(), true
 }

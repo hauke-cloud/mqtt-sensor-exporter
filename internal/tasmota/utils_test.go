@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestApplyCorrectionToFloat(t *testing.T) {
@@ -387,37 +388,37 @@ func TestEvaluateAlertCondition(t *testing.T) {
 }
 
 func TestCheckAlertConditions(t *testing.T) {
+	now := metav1.Now()
+
 	tests := []struct {
-		name         string
-		measurements map[string]any
-		device       *mqttv1alpha1.Device
-		expected     bool
+		name     string
+		device   *mqttv1alpha1.Device
+		expected bool
 	}{
 		{
-			name: "Nil device",
-			measurements: map[string]any{
-				"temperature": 26.0,
-			},
+			name:     "Nil device",
 			device:   nil,
 			expected: false,
 		},
 		{
 			name: "No alert condition",
-			measurements: map[string]any{
-				"temperature": 26.0,
-			},
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: nil,
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"temperature": {
+							Value:    "26.0",
+							LastSeen: now,
+						},
+					},
 				},
 			},
 			expected: false,
 		},
 		{
-			name: "Measurement not present",
-			measurements: map[string]any{
-				"humidity": 50.0,
-			},
+			name: "Measurements map not initialized",
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
@@ -426,20 +427,49 @@ func TestCheckAlertConditions(t *testing.T) {
 						Value:       "25.0",
 					},
 				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: nil,
+				},
 			},
 			expected: false,
 		},
 		{
-			name: "Temperature above threshold - alert triggered",
-			measurements: map[string]any{
-				"temperature": 26.5,
-			},
+			name: "Measurement not present",
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"humidity": {
+							Value:    "50.0",
+							LastSeen: now,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Temperature above threshold - alert triggered (raw value)",
+			device: &mqttv1alpha1.Device{
+				Spec: mqttv1alpha1.DeviceSpec{
+					AlertCondition: &mqttv1alpha1.AlertCondition{
+						Measurement: "temperature",
+						Operator:    "above",
+						Value:       "25.0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"temperature": {
+							Value:    "26.5",
+							LastSeen: now,
+						},
 					},
 				},
 			},
@@ -447,9 +477,6 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Temperature below threshold - no alert",
-			measurements: map[string]any{
-				"temperature": 24.0,
-			},
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
@@ -458,14 +485,63 @@ func TestCheckAlertConditions(t *testing.T) {
 						Value:       "25.0",
 					},
 				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"temperature": {
+							Value:    "24.0",
+							LastSeen: now,
+						},
+					},
+				},
 			},
 			expected: false,
 		},
 		{
-			name: "Humidity below threshold - alert triggered",
-			measurements: map[string]any{
-				"humidity": 25.0,
+			name: "Temperature above threshold - alert triggered (corrected value)",
+			device: &mqttv1alpha1.Device{
+				Spec: mqttv1alpha1.DeviceSpec{
+					AlertCondition: &mqttv1alpha1.AlertCondition{
+						Measurement: "temperature",
+						Operator:    "above",
+						Value:       "25.0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"temperature": {
+							Value:          "28.0",         // Raw value
+							CorrectedValue: strPtr("26.5"), // Corrected value > 25.0
+							LastSeen:       now,
+						},
+					},
+				},
 			},
+			expected: true,
+		},
+		{
+			name: "Temperature below threshold - no alert (corrected value)",
+			device: &mqttv1alpha1.Device{
+				Spec: mqttv1alpha1.DeviceSpec{
+					AlertCondition: &mqttv1alpha1.AlertCondition{
+						Measurement: "temperature",
+						Operator:    "above",
+						Value:       "25.0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"temperature": {
+							Value:          "26.0",         // Raw value > 25.0
+							CorrectedValue: strPtr("24.0"), // But corrected value < 25.0
+							LastSeen:       now,
+						},
+					},
+				},
+			},
+			expected: false, // Uses corrected value, which is below threshold
+		},
+		{
+			name: "Humidity below threshold - alert triggered",
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
@@ -474,52 +550,54 @@ func TestCheckAlertConditions(t *testing.T) {
 						Value:       "30.0",
 					},
 				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"humidity": {
+							Value:    "25.0",
+							LastSeen: now,
+						},
+					},
+				},
 			},
 			expected: true,
 		},
 		{
 			name: "Power state is 0 - alert triggered",
-			measurements: map[string]any{
-				"power": 0,
-			},
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
 						Measurement: "power",
 						Operator:    "is",
-						Value:       "0.0",
+						Value:       "0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"power": {
+							Value:    "0",
+							LastSeen: now,
+						},
 					},
 				},
 			},
 			expected: true,
 		},
 		{
-			name: "Integer value conversion",
-			measurements: map[string]any{
-				"link_quality": 50,
-			},
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
-						Measurement: "link_quality",
-						Operator:    "below",
-						Value:       "60.0",
-					},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "Non-numeric value - no alert",
-			measurements: map[string]any{
-				"contact": true,
-			},
+			name: "Invalid measurement value - no alert",
 			device: &mqttv1alpha1.Device{
 				Spec: mqttv1alpha1.DeviceSpec{
 					AlertCondition: &mqttv1alpha1.AlertCondition{
 						Measurement: "contact",
-						Operator:    "is",
-						Value:       "1.0",
+						Operator:    "above",
+						Value:       "0",
+					},
+				},
+				Status: mqttv1alpha1.DeviceStatus{
+					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+						"contact": {
+							Value:    "true", // Boolean, can't be converted to float
+							LastSeen: now,
+						},
 					},
 				},
 			},
@@ -529,10 +607,15 @@ func TestCheckAlertConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := checkAlertConditions(tt.measurements, tt.device)
+			result := checkAlertConditions(tt.device)
 			if result != tt.expected {
 				t.Errorf("checkAlertConditions() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
+}
+
+// Helper function to create string pointers
+func strPtr(s string) *string {
+	return &s
 }

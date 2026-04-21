@@ -26,19 +26,24 @@ type TelemetryMessage struct {
 
 // ZigbeeDevice represents a Zigbee device in the ZbReceived payload
 type ZigbeeDevice struct {
-	Device            string   `json:"Device"`
-	Name              string   `json:"Name,omitempty"`
-	Power             *int     `json:"Power,omitempty"`
-	Endpoint          *int     `json:"Endpoint,omitempty"`
-	LinkQuality       *int     `json:"LinkQuality,omitempty"`
-	BatteryPercentage *int     `json:"BatteryPercentage,omitempty"`
-	Temperature       *float64 `json:"Temperature,omitempty"`
-	Humidity          *float64 `json:"Humidity,omitempty"`
-	Pressure          *float64 `json:"Pressure,omitempty"`
-	Voltage           *float64 `json:"Voltage,omitempty"`
-	Contact           *bool    `json:"Contact,omitempty"`
-	Occupancy         *bool    `json:"Occupancy,omitempty"`
-	WaterLeak         *bool    `json:"WaterLeak,omitempty"`
+	Device                string   `json:"Device"`
+	Name                  string   `json:"Name,omitempty"`
+	Power                 *int     `json:"Power,omitempty"`
+	Endpoint              *int     `json:"Endpoint,omitempty"`
+	LinkQuality           *int     `json:"LinkQuality,omitempty"`
+	BatteryPercentage     *int     `json:"BatteryPercentage,omitempty"`
+	Temperature           *float64 `json:"Temperature,omitempty"`
+	Humidity              *float64 `json:"Humidity,omitempty"`
+	Pressure              *float64 `json:"Pressure,omitempty"`
+	Voltage               *float64 `json:"Voltage,omitempty"`
+	Contact               *bool    `json:"Contact,omitempty"`
+	Occupancy             *bool    `json:"Occupancy,omitempty"`
+	WaterLeak             *bool    `json:"WaterLeak,omitempty"`
+	WaterLevel            *int     `json:"EF00/0202,omitempty"`             // Water level sensor (e.g., 285)
+	LastValveOpenDuration *int     `json:"lastValveOpenDuration,omitempty"` // Valve open duration in seconds
+	IrrigationStartTime   *int64   `json:"irrigationStartTime,omitempty"`   // Unix timestamp
+	IrrigationEndTime     *int64   `json:"irrigationEndTime,omitempty"`     // Unix timestamp
+	DailyIrrigationVolume *int     `json:"dailyIrrigationVolume,omitempty"` // Daily volume
 	// Additional fields stored as raw data
 	Additional map[string]any `json:"-"`
 }

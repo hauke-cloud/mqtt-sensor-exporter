@@ -1,0 +1,167 @@
+# Example: Device with Individual Measurement Tracking
+#
+# This example demonstrates the new measurements status field that tracks
+# individual measurements with their values, timestamps, and corrections.
+
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: multi-sensor-livingroom
+  namespace: default
+spec:
+  # Device identification (set by operator)
+  bridgeRef:
+    name: zigbee-bridge
+  ieeeAddr: "0x00124b001234abcd"
+  
+  # User configuration
+  friendlyName: "Living Room Multi-Sensor"
+  location: "Living Room"
+  room: "living-room"
+  sensorType: "temperature"
+  
+  # Corrections for inaccurate sensors
+  corrections:
+    temperature: "-2.5"  # Sensor reads 2.5°C too high
+    humidity: "5.0"      # Sensor reads 5% too low
+  
+  # Alert on high temperature
+  alertCondition:
+    measurement: "temperature"
+    operator: "above"
+    value: "25.0"
+
+---
+# Expected status after receiving measurements:
+#
+# status:
+#   alert: false
+#   available: true
+#   batteryLevel: 95
+#   linkQuality: 120
+#   lastSeen: "2026-04-21T09:00:00Z"
+#   capabilities:
+#     - temperature
+#     - humidity
+#     - pressure
+#   
+#   # Old format (still populated for backward compatibility)
+#   lastMeasurement: '{"temperature":20.0,"humidity":50.0,"pressure":1013.2,"link_quality":120}'
+#   
+#   # New format - individual measurements with corrections
+#   measurements:
+#     temperature:
+#       value: "22.5"              # Raw value from sensor
+#       lastSeen: "2026-04-21T09:00:00Z"
+#       correction: "-2.5"         # Correction applied
+#       correctedValue: "20.0"     # Final value (used for alerts)
+#     
+#     humidity:
+#       value: "45.0"              # Raw value
+#       lastSeen: "2026-04-21T09:00:05Z"
+#       correction: "5.0"          # Correction applied
+#       correctedValue: "50.0"     # Final value
+#     
+#     pressure:
+#       value: "1013.2"            # No correction configured
+#       lastSeen: "2026-04-21T09:00:10Z"
+#     
+#     link_quality:
+#       value: "120"               # No correction needed
+#       lastSeen: "2026-04-21T09:00:00Z"
+
+---
+# Example queries for the new measurements field:
+
+# Get temperature value
+# kubectl get device multi-sensor-livingroom -o jsonpath='{.status.measurements.temperature.value}'
+# Output: 22.5
+
+# Get corrected temperature
+# kubectl get device multi-sensor-livingroom -o jsonpath='{.status.measurements.temperature.correctedValue}'
+# Output: 20.0
+
+# Get all measurements
+# kubectl get device multi-sensor-livingroom -o jsonpath='{.status.measurements}' | jq .
+# Output: Full JSON with all measurements
+
+# Check when temperature was last seen
+# kubectl get device multi-sensor-livingroom -o jsonpath='{.status.measurements.temperature.lastSeen}'
+# Output: 2026-04-21T09:00:00Z
+
+# List all devices with corrected temperatures
+# kubectl get devices -o custom-columns=NAME:.metadata.name,TEMP:.status.measurements.temperature.correctedValue,RAW:.status.measurements.temperature.value
+
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: valve-controller-garden
+  namespace: default
+spec:
+  bridgeRef:
+    name: zigbee-bridge
+  ieeeAddr: "0x00124b001234ef01"
+  
+  friendlyName: "Garden Valve Controller"
+  location: "Garden"
+  sensorType: "valve"
+
+# Expected status for valve (binary sensor):
+#
+# status:
+#   lastPowerState: 1  # Valve is open
+#   measurements:
+#     power:
+#       value: "1"
+#       lastSeen: "2026-04-21T09:15:00Z"
+#     endpoint:
+#       value: "1"
+#       lastSeen: "2026-04-21T09:15:00Z"
+
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: contact-sensor-door
+  namespace: default
+spec:
+  bridgeRef:
+    name: zigbee-bridge
+  ieeeAddr: "0x00124b001234ef02"
+  
+  friendlyName: "Front Door Contact Sensor"
+  location: "Front Door"
+
+# Expected status for contact sensor:
+#
+# status:
+#   measurements:
+#     contact:
+#       value: "false"  # Door closed
+#       lastSeen: "2026-04-21T09:20:00Z"
+
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: motion-sensor-hallway
+  namespace: default
+spec:
+  bridgeRef:
+    name: zigbee-bridge
+  ieeeAddr: "0x00124b001234ef03"
+  
+  friendlyName: "Hallway Motion Sensor"
+  location: "Hallway"
+
+# Expected status for motion sensor:
+#
+# status:
+#   measurements:
+#     occupancy:
+#       value: "true"  # Motion detected
+#       lastSeen: "2026-04-21T09:25:00Z"
+#     water_leak:
+#       value: "false"  # No leak
+#       lastSeen: "2026-04-21T09:25:00Z"

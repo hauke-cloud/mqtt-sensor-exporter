@@ -155,7 +155,7 @@ spec:
                 description: |-
                   SensorType specifies what type of measurements this device provides
                   This determines which database and GORM handler to use for storing data
-                  Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure"
+                  Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure", "water_level"
                 enum:
                 - valve
                 - moisture
@@ -164,6 +164,7 @@ spec:
                 - temperature
                 - humidity
                 - pressure
+                - water_level
                 type: string
             required:
             - bridgeRef
@@ -271,8 +272,9 @@ spec:
                   actuator, switch)
                 type: string
               lastMeasurement:
-                description: LastMeasurement contains the most recent measurement
-                  data as JSON string
+                description: |-
+                  LastMeasurement contains the most recent measurement data as JSON string
+                  Deprecated: Use Measurements map instead for detailed measurement tracking
                 type: string
               lastPowerState:
                 description: |-
@@ -304,6 +306,40 @@ spec:
               manufacturer:
                 description: Manufacturer is the device manufacturer
                 type: string
+              measurements:
+                additionalProperties:
+                  description: MeasurementValue represents a single measurement with
+                    its value, timestamp, and optional corrections
+                  properties:
+                    correctedValue:
+                      description: |-
+                        CorrectedValue is the value after applying the correction
+                        Only set if a correction was applied
+                      type: string
+                    correction:
+                      description: |-
+                        Correction is the correction value applied to this measurement (if any)
+                        Only set if a correction was configured for this measurement
+                      type: string
+                    lastSeen:
+                      description: LastSeen is the timestamp when this measurement
+                        was last received
+                      format: date-time
+                      type: string
+                    value:
+                      description: |-
+                        Value is the raw measurement value received from the device
+                        Stored as string for cross-language compatibility
+                      type: string
+                  required:
+                  - lastSeen
+                  - value
+                  type: object
+                description: |-
+                  Measurements contains individual measurements with their values, timestamps, and corrections
+                  Key is the measurement name (e.g., "temperature", "humidity", "pressure")
+                  Value contains the measurement details including corrections if applied
+                type: object
               modelId:
                 description: ModelID is the device model identifier discovered from
                   MQTT

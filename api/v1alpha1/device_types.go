@@ -37,8 +37,8 @@ type DeviceSpec struct {
 
 	// SensorType specifies what type of measurements this device provides
 	// This determines which database and GORM handler to use for storing data
-	// Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure"
-	// +kubebuilder:validation:Enum=valve;moisture;power;solar;temperature;humidity;pressure
+	// Supported types: "valve", "moisture", "power", "solar", "temperature", "humidity", "pressure", "water_level"
+	// +kubebuilder:validation:Enum=valve;moisture;power;solar;temperature;humidity;pressure;water_level
 	// +optional
 	SensorType string `json:"sensorType,omitempty"`
 
@@ -105,6 +105,28 @@ type AlertCondition struct {
 	Value string `json:"value"`
 }
 
+// MeasurementValue represents a single measurement with its value, timestamp, and optional corrections
+type MeasurementValue struct {
+	// Value is the raw measurement value received from the device
+	// Stored as string for cross-language compatibility
+	// +kubebuilder:validation:Required
+	Value string `json:"value"`
+
+	// LastSeen is the timestamp when this measurement was last received
+	// +kubebuilder:validation:Required
+	LastSeen metav1.Time `json:"lastSeen"`
+
+	// Correction is the correction value applied to this measurement (if any)
+	// Only set if a correction was configured for this measurement
+	// +optional
+	Correction *string `json:"correction,omitempty"`
+
+	// CorrectedValue is the value after applying the correction
+	// Only set if a correction was applied
+	// +optional
+	CorrectedValue *string `json:"correctedValue,omitempty"`
+}
+
 // DeviceStatus defines the observed state of Device.
 type DeviceStatus struct {
 	// Alert show if this device triggered the alert condition
@@ -146,8 +168,15 @@ type DeviceStatus struct {
 	Available bool `json:"available,omitempty"`
 
 	// LastMeasurement contains the most recent measurement data as JSON string
+	// Deprecated: Use Measurements map instead for detailed measurement tracking
 	// +optional
 	LastMeasurement string `json:"lastMeasurement,omitempty"`
+
+	// Measurements contains individual measurements with their values, timestamps, and corrections
+	// Key is the measurement name (e.g., "temperature", "humidity", "pressure")
+	// Value contains the measurement details including corrections if applied
+	// +optional
+	Measurements map[string]MeasurementValue `json:"measurements,omitempty"`
 
 	// BatteryPercentage indicates the battery percentage (0-100) if applicable
 	// +optional

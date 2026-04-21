@@ -1,0 +1,222 @@
+# Example: Water Level Sensor Configuration
+#
+# This example demonstrates configuration for water level sensors
+# that report via the EF00/0202 field in Tasmota Zigbee messages.
+
+---
+# Database configuration for water level measurements
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  name: water-level-db
+  namespace: default
+spec:
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "water_sensors"
+  username: "water_writer"
+  passwordSecretRef:
+    name: water-db-credentials
+  supportedSensorTypes:
+    - water_level
+  sslMode: "require"
+  maxConnections: 10
+  batchSize: 100
+  batchTimeout: 10
+
+---
+# Example device: Water level sensor without corrections
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-level-right
+  namespace: default
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x8C4A"
+  friendlyName: "Water Level Right Tank"
+  sensorType: "water_level"
+  location: "Garden"
+  room: "outside"
+  metadataLabels:
+    tank: "right"
+    zone: "irrigation"
+
+# Expected MQTT message:
+# {
+#   "ZbReceived": {
+#     "0x8C4A": {
+#       "Device": "0x8C4A",
+#       "Name": "water_level_right",
+#       "EF00/0202": 285,
+#       "Endpoint": 1,
+#       "LinkQuality": 65
+#     }
+#   }
+# }
+
+# Expected status:
+# status:
+#   measurements:
+#     water_level:
+#       value: "285"
+#       lastSeen: "2026-04-21T09:30:00Z"
+#     link_quality:
+#       value: "65"
+#       lastSeen: "2026-04-21T09:30:00Z"
+#   capabilities:
+#     - water_level
+
+---
+# Example device: Water level sensor with correction
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-level-left
+  namespace: default
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x8C4B"
+  friendlyName: "Water Level Left Tank"
+  sensorType: "water_level"
+  location: "Garden"
+  room: "outside"
+  
+  # Apply correction (sensor reads 10 units too low)
+  corrections:
+    water_level: "10"
+  
+  metadataLabels:
+    tank: "left"
+    zone: "irrigation"
+
+# Expected status with correction:
+# status:
+#   measurements:
+#     water_level:
+#       value: "275"              # Raw sensor reading
+#       lastSeen: "2026-04-21T09:30:00Z"
+#       correction: "10"          # Applied correction
+#       correctedValue: "285"     # Final value (275 + 10)
+
+---
+# Example device: Water level sensor with low-level alert
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-level-main
+  namespace: default
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x8C4C"
+  friendlyName: "Main Water Tank Level"
+  sensorType: "water_level"
+  location: "Utility Room"
+  
+  # Alert when water level drops below 100
+  alertCondition:
+    measurement: "water_level"
+    operator: "below"
+    value: "100"
+  
+  metadataLabels:
+    critical: "true"
+    tank: "main"
+
+# Alert behavior:
+# - Water level 150 → alert: false
+# - Water level 100 → alert: false (not below)
+# - Water level 99  → alert: true  (below 100)
+
+---
+# Example device: Water level sensor with high-level alert
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-level-overflow
+  namespace: default
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x8C4D"
+  friendlyName: "Overflow Tank Level"
+  sensorType: "water_level"
+  location: "Basement"
+  
+  # Alert when water level exceeds safe limit
+  alertCondition:
+    measurement: "water_level"
+    operator: "above"
+    value: "500"
+  
+  metadataLabels:
+    warning: "overflow"
+    tank: "overflow"
+
+---
+# Example device: Combined correction and alert
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: water-level-pool
+  namespace: default
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0x8C4E"
+  friendlyName: "Swimming Pool Water Level"
+  sensorType: "water_level"
+  location: "Backyard"
+  
+  # Sensor needs calibration
+  corrections:
+    water_level: "-15"  # Sensor reads 15 units too high
+  
+  # Alert if pool level drops too low (using corrected value)
+  alertCondition:
+    measurement: "water_level"
+    operator: "below"
+    value: "200"
+  
+  metadataLabels:
+    location: "pool"
+    priority: "medium"
+
+# Example with raw=220, correction=-15:
+# - Corrected value: 220 - 15 = 205
+# - Alert evaluates: 205 < 200? → false
+# 
+# Example with raw=210, correction=-15:
+# - Corrected value: 210 - 15 = 195
+# - Alert evaluates: 195 < 200? → true
+
+---
+# Query examples for water level devices
+
+# Get current water level
+# kubectl get device water-level-right -o jsonpath='{.status.measurements.water_level.value}'
+
+# Get all water level devices
+# kubectl get devices -o custom-columns=\
+# NAME:.metadata.name,\
+# LEVEL:.status.measurements.water_level.correctedValue,\
+# ALERT:.status.alert,\
+# LOCATION:.spec.location
+
+# Watch water level changes
+# kubectl get device water-level-right -w -o jsonpath='{.status.measurements.water_level}'
+
+# Database query for water level history (run in database):
+# SELECT 
+#     timestamp,
+#     device_name,
+#     level,
+#     battery_percentage,
+#     link_quality
+# FROM water_level_measurements
+# WHERE device_id = 'water-level-right'
+# ORDER BY timestamp DESC
+# LIMIT 100;
