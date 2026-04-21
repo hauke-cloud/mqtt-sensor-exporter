@@ -74,6 +74,36 @@ spec:
           spec:
             description: spec defines the desired state of Device
             properties:
+              alertCondition:
+                description: |-
+                  AlertCondition defines a condition that triggers an alert when met
+                  When the condition evaluates to true, status.alert is set to true
+                properties:
+                  measurement:
+                    description: Measurement is the name of the measurement to check
+                      (e.g., "temperature", "humidity")
+                    minLength: 1
+                    type: string
+                  operator:
+                    description: |-
+                      Operator defines the comparison operator
+                      Supported operators: "above", "below", "is"
+                    enum:
+                    - above
+                    - below
+                    - is
+                    type: string
+                  value:
+                    description: |-
+                      Value is the threshold value to compare against
+                      Stored as string for cross-language compatibility (e.g., "25.0", "30.5")
+                    pattern: ^-?\d+(\.\d+)?$
+                    type: string
+                required:
+                - measurement
+                - operator
+                - value
+                type: object
               bridgeRef:
                 description: |-
                   BridgeRef references the MQTTBridge this device belongs to
@@ -90,9 +120,11 @@ spec:
                 - name
                 type: object
               corrections:
-                additionalProperties: {}
-                description: Corrections is an optional value that can be used to
-                  apply correction factors to the device's measurements
+                additionalProperties:
+                  type: string
+                description: |-
+                  Corrections is an optional value that can be used to apply correction factors to the device's measurements
+                  Values are stored as strings to ensure cross-language compatibility (e.g., "2.5", "-1.8")
                 type: object
               disabled:
                 default: false
@@ -133,12 +165,6 @@ spec:
                 - humidity
                 - pressure
                 type: string
-              thresholds:
-                additionalProperties: {}
-                description: |-
-                  Thresholds is an optional value that can be used for alerting or automation triggers
-                  This field can be used by users to set a threshold for triggering alerts or automation actions based on the device's measurements
-                type: object
             required:
             - bridgeRef
             - ieeeAddr

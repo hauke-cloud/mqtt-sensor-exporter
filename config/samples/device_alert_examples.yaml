@@ -27,7 +27,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: 30.0
+    value: "30.0"
 
 ---
 # Example 2: Low Humidity Alert
@@ -52,7 +52,7 @@ spec:
   alertCondition:
     measurement: "humidity"
     operator: "below"
-    value: 30.0
+    value: "30.0"
 
 ---
 # Example 3: Refrigerator Temperature Monitoring
@@ -83,7 +83,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: 4.0
+    value: "4.0"
 
 ---
 # Example 4: Freezer Temperature Alert
@@ -108,7 +108,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: -15.0
+    value: "-15.0"
 
 ---
 # Example 5: Water Valve State Monitoring
@@ -134,7 +134,7 @@ spec:
   alertCondition:
     measurement: "power"
     operator: "is"
-    value: 0
+    value: "0"
 
 ---
 # Example 6: Low Battery Alert
@@ -159,7 +159,7 @@ spec:
   alertCondition:
     measurement: "battery_percentage"
     operator: "below"
-    value: 20.0
+    value: "20.0"
 
 ---
 # Example 7: Poor Signal Quality Alert
@@ -185,7 +185,7 @@ spec:
   alertCondition:
     measurement: "link_quality"
     operator: "below"
-    value: 40.0
+    value: "40.0"
 
 ---
 # Example 8: Server Room High Temperature
@@ -212,7 +212,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: 26.0
+    value: "26.0"
 
 ---
 # Example 9: High Humidity in Server Room
@@ -237,7 +237,7 @@ spec:
   alertCondition:
     measurement: "humidity"
     operator: "above"
-    value: 60.0
+    value: "60.0"
 
 ---
 # Example 10: Soil Moisture Monitoring
@@ -264,7 +264,7 @@ spec:
   alertCondition:
     measurement: "humidity"
     operator: "below"
-    value: 35.0
+    value: "35.0"
 
 ---
 # Example 11: Wine Cellar Temperature
@@ -293,7 +293,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: 14.0
+    value: "14.0"
 
 ---
 # Example 12: Aquarium Temperature
@@ -320,7 +320,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "below"
-    value: 24.0
+    value: "24.0"
 
 ---
 # Example 13: Pressure Drop Alert
@@ -345,7 +345,7 @@ spec:
   alertCondition:
     measurement: "pressure"
     operator: "below"
-    value: 980.0
+    value: "980.0"
 
 ---
 # Example 14: Combined Corrections and Alerts
@@ -379,7 +379,7 @@ spec:
   alertCondition:
     measurement: "temperature"
     operator: "above"
-    value: 22.0
+    value: "22.0"
   
   metadataLabels:
     department: "research"
@@ -409,4 +409,4 @@ spec:
   alertCondition:
     measurement: "power"
     operator: "is"
-    value: 0
+    value: "0"

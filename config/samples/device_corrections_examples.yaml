@@ -22,7 +22,7 @@ spec:
   # This sensor consistently reads 2.5°C too high
   # Applying -2.5 correction to get accurate readings
   corrections:
-    temperature: -2.5
+    temperature: "-2.5"
 
 ---
 # Example 2: Humidity sensor that reads too low
@@ -42,7 +42,7 @@ spec:
   
   # Humidity sensor reads 5% too low compared to calibrated hygrometer
   corrections:
-    humidity: 5.0
+    humidity: "5.0"
 
 ---
 # Example 3: Multi-sensor with multiple corrections
@@ -62,8 +62,8 @@ spec:
   
   # Multiple measurements need correction
   corrections:
-    temperature: -1.8    # Reads 1.8°C too high due to solar heating of enclosure
-    humidity: 3.5        # Reads 3.5% too low
+    temperature: "-1.8"    # Reads 1.8°C too high due to solar heating of enclosure
+    humidity: "3.5"        # Reads 3.5% too low
     pressure: -2.1       # Reads 2.1 hPa too high (altitude calibration)
 
 ---
@@ -85,8 +85,8 @@ spec:
   # Voltage drops due to long wire, add 0.15V to compensate
   # Temperature affected by cold weather
   corrections:
-    temperature: 0.5     # Sensor reads slightly low in cold weather
-    voltage: 0.15        # Compensate for wire voltage drop
+    temperature: "0.5"     # Sensor reads slightly low in cold weather
+    voltage: "0.15"        # Compensate for wire voltage drop
 
 ---
 # Example 5: Moisture sensor with calibration
@@ -107,8 +107,8 @@ spec:
   # Calibrated against gravimetric soil moisture measurement
   # This sensor reads 12% too high in moist soil
   corrections:
-    humidity: -12.0      # Soil moisture is reported as "Humidity" by sensor
-    temperature: -0.8    # Slight temperature offset
+    humidity: "-12.0"      # Soil moisture is reported as "Humidity" by sensor
+    temperature: "-0.8"    # Slight temperature offset
 
 ---
 # Example 6: Pressure sensor with altitude correction
@@ -130,8 +130,8 @@ spec:
   # Location is 250m above sea level
   # Approximate correction: +30 hPa
   corrections:
-    pressure: 30.0
-    temperature: -0.3    # Sensor in direct sunlight reads slightly high
+    pressure: "30.0"
+    temperature: "-0.3"    # Sensor in direct sunlight reads slightly high
 
 ---
 # Example 7: Link quality normalization
@@ -152,8 +152,8 @@ spec:
   # This sensor model reports link quality differently
   # Normalize to match other sensors in the network
   corrections:
-    link_quality: -20    # Reduce by 20 to match scale of other sensors
-    temperature: 1.2     # Basement is cooler, sensor reads low
+    link_quality: "-20"    # Reduce by 20 to match scale of other sensors
+    temperature: "1.2"     # Basement is cooler, sensor reads low
 
 ---
 # Example 8: No corrections needed (for comparison)
@@ -194,7 +194,7 @@ spec:
   # For integer values like power state, corrections are truncated
   # Generally not needed for on/off values, but shown for completeness
   corrections:
-    battery_percentage: 5  # Battery reading is consistently 5% low
+    battery_percentage: "5"  # Battery reading is consistently 5% low
 
 ---
 # Example 10: Complex scenario with thresholds and corrections
@@ -218,7 +218,7 @@ spec:
   
   # Sensor reads 1.5°C too high due to mounting position near motor
   corrections:
-    temperature: -1.5
+    temperature: "-1.5"
   
   metadataLabels:
     appliance: "refrigerator"
