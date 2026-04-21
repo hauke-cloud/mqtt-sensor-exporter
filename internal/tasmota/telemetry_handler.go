@@ -136,15 +136,20 @@ func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1a
 	// Build payload from Zigbee device data
 	payload := make(map[string]any)
 
-	// Always include device identifiers
-	if device.Status.ShortAddr != "" {
-		payload["Device"] = device.Status.ShortAddr
+	// Always include device identifiers - use zbDevice.Device directly as it always has the short address
+	if zbDevice.Device != "" {
+		payload["Device"] = zbDevice.Device
 	}
 	if device.Spec.FriendlyName != "" {
 		payload["Name"] = device.Spec.FriendlyName
 	} else if zbDevice.Name != "" {
 		payload["Name"] = zbDevice.Name
 	}
+
+	h.log.Debug("Building database payload",
+		zap.String("device", device.Name),
+		zap.String("sensorType", device.Spec.SensorType),
+		zap.String("shortAddr", zbDevice.Device))
 
 	// Add measurements with corrections applied
 	if zbDevice.Temperature != nil {
@@ -213,12 +218,21 @@ func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1a
 	}
 
 	// Store to database
+	h.log.Debug("Attempting to store measurement to database",
+		zap.String("device", device.Name),
+		zap.String("sensorType", device.Spec.SensorType),
+		zap.Int("payloadSize", len(payload)))
+
 	err := h.dbManager.StoreMeasurement(ctx, device.Name, device.Spec.SensorType, payload)
 	if err != nil {
+		h.log.Error("StoreMeasurement returned error",
+			zap.String("device", device.Name),
+			zap.String("sensorType", device.Spec.SensorType),
+			zap.Error(err))
 		return err
 	}
 
-	h.log.Debug("Stored measurement to database",
+	h.log.Info("Successfully stored measurement to database",
 		zap.String("device", device.Name),
 		zap.String("sensorType", device.Spec.SensorType),
 		zap.Int("payloadSize", len(payload)))

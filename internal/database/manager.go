@@ -222,17 +222,30 @@ func (m *Manager) StoreMeasurement(ctx context.Context, deviceID, sensorType str
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	m.log.Debug("StoreMeasurement called",
+		zap.String("deviceID", deviceID),
+		zap.String("sensorType", sensorType),
+		zap.Int("payloadSize", len(payload)),
+		zap.Int("numConnections", len(m.connections)))
+
 	// Find database that supports this sensor type
 	var targetConn *Connection
-	for _, conn := range m.connections {
+	for key, conn := range m.connections {
+		m.log.Debug("Checking database connection",
+			zap.String("database", key),
+			zap.Strings("supportedTypes", conn.database.Spec.SupportedSensorTypes))
+
 		if slices.Contains(conn.database.Spec.SupportedSensorTypes, sensorType) {
 			targetConn = conn
+			m.log.Debug("Found matching database",
+				zap.String("database", key),
+				zap.String("sensorType", sensorType))
 			break
 		}
 	}
 
 	if targetConn == nil {
-		m.log.Debug("No database found for sensor type",
+		m.log.Warn("No database found for sensor type",
 			zap.String("sensorType", sensorType),
 			zap.String("deviceID", deviceID))
 		return fmt.Errorf("no database found for sensor type: %s", sensorType)
