@@ -52,6 +52,7 @@ type Connection struct {
 	moistureHandler   *MoistureHandler
 	waterLevelHandler *WaterLevelHandler
 	valveHandler      *ValveHandler
+	roomHandler       *RoomHandler
 	// Future handlers can be added here:
 	// powerHandler     *PowerHandler
 	// solarHandler     *SolarHandler
@@ -270,6 +271,12 @@ func (m *Manager) StoreMeasurement(ctx context.Context, deviceID, sensorType str
 			return fmt.Errorf("valve handler not initialized")
 		}
 		return targetConn.valveHandler.StoreMeasurement(ctx, deviceID, payload)
+
+	case "room":
+		if targetConn.roomHandler == nil {
+			return fmt.Errorf("room handler not initialized")
+		}
+		return targetConn.roomHandler.StoreMeasurement(ctx, deviceID, payload)
 
 	// Future sensor types:
 	// case "power":

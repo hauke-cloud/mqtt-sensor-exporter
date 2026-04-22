@@ -64,6 +64,7 @@ spec:
     - "temperature"
     - "humidity"
     - "pressure"
+    - "room"        # Room sensors (temperature + humidity)
   maxConnections: 15
   batchSize: 150
   batchTimeout: 10

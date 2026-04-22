@@ -86,3 +86,23 @@ type WaterLevelMeasurement struct {
 func (WaterLevelMeasurement) TableName() string {
 	return "water_level_measurements"
 }
+
+// RoomMeasurement represents a room sensor measurement in the database
+// This model is used by GORM to auto-create/manage the room_measurements table
+type RoomMeasurement struct {
+	ID          uint      `gorm:"primaryKey"`
+	Timestamp   time.Time `gorm:"index;not null"`
+	DeviceID    string    `gorm:"index;size:255;not null"` // Device CR name
+	DeviceName  string    `gorm:"size:255"`                // Friendly name from Tasmota
+	ShortAddr   string    `gorm:"index;size:50"`           // Zigbee short address (e.g., "0xB3CC")
+	IEEEAddr    string    `gorm:"index;size:100"`          // IEEE address if available
+	Temperature *float64  `gorm:"type:decimal(5,2)"`       // Temperature in Celsius
+	Humidity    *float64  `gorm:"type:decimal(5,2)"`       // Humidity percentage
+	LinkQuality *int      // Link quality (0-255)
+	Endpoint    *int      // Zigbee endpoint
+}
+
+// TableName overrides the default table name
+func (RoomMeasurement) TableName() string {
+	return "room_measurements"
+}

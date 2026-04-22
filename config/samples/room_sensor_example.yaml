@@ -1,0 +1,94 @@
+# Example configuration for room sensor type
+# Room sensors typically measure temperature and humidity in living spaces
+---
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Database
+metadata:
+  name: room-sensors-db
+  namespace: default
+spec:
+  host: "timescaledb.default.svc.cluster.local"
+  port: 5432
+  database: "room_sensors"
+  username: "room_writer"
+  passwordSecretRef:
+    name: room-db-credentials
+  sslMode: "require"
+  # This database handles room sensor measurements
+  # Data will be stored in the "room_measurements" table
+  supportedSensorTypes:
+    - "room"
+  maxConnections: 10
+  batchSize: 100
+  batchTimeout: 10
+---
+# Secret for database credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: room-db-credentials
+  namespace: default
+type: Opaque
+stringData:
+  password: "room_db_password_here"
+---
+# Example Device with room sensor type
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: Device
+metadata:
+  name: living-room-sensor
+  namespace: default
+  labels:
+    mqtt.hauke.cloud/sensor-type: room
+spec:
+  bridgeRef:
+    name: tasmota-bridge
+  ieeeAddr: "0xB3CC"
+  friendlyName: "Living Room Sensor"
+  location: "Living Room"
+  room: "living-room"
+  # Set sensor type to "room" for automatic routing to room_measurements table
+  sensorType: "room"
+  metadataLabels:
+    zone: "ground-floor"
+    type: "climate"
+---
+# Example MQTT Bridge for Tasmota devices
+apiVersion: mqtt.hauke.cloud/v1alpha1
+kind: MQTTBridge
+metadata:
+  name: tasmota-bridge
+  namespace: default
+spec:
+  host: "mqtt.local"
+  port: 1883
+  credentialsSecretRef:
+    name: mqtt-credentials
+  deviceType: "tasmota"
+  bridgeName: "tasmota_br_1"
+  topics:
+    - topic: "tele/tasmota_br_1/SENSOR"
+      type: "telemetry"
+      qos: 0
+---
+# Example MQTT payload that will be received:
+# {
+#   "ZbReceived": {
+#     "0xB3CC": {
+#       "Device": "0xB3CC",
+#       "Temperature": 27.38,
+#       "Humidity": 51.08,
+#       "Endpoint": 1,
+#       "LinkQuality": 54
+#     }
+#   }
+# }
+#
+# This will be stored in the room_measurements table with:
+# - timestamp: Current time
+# - device_id: "living-room-sensor"
+# - short_addr: "0xB3CC"
+# - temperature: 27.38
+# - humidity: 51.08
+# - link_quality: 54
+# - endpoint: 1
