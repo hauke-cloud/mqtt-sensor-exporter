@@ -181,6 +181,14 @@ func (m *Manager) Connect(ctx context.Context, database *mqttv1alpha1.Database) 
 			conn.valveHandler = handler
 			m.log.Info("Valve handler initialized", zap.String("database", key))
 
+		case "room":
+			handler := NewRoomHandler(db, m.log.With(zap.String("handler", "room")))
+			if err := handler.Initialize(ctx); err != nil {
+				return fmt.Errorf("failed to initialize room handler: %w", err)
+			}
+			conn.roomHandler = handler
+			m.log.Info("Room handler initialized", zap.String("database", key))
+
 			// Future sensor types:
 			// case "power":
 			//     handler := NewPowerHandler(db, m.log.With(zap.String("handler", "power")))
