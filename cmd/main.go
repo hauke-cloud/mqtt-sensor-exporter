@@ -21,20 +21,16 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
-	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	uberzap "go.uber.org/zap"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -42,9 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
-	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/controller"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/watcher"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -69,7 +65,6 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
-	var installCRDs bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -79,8 +74,6 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&secureMetrics, "metrics-secure", true,
 		"If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
-	flag.BoolVar(&installCRDs, "install-crds", true,
-		"If set, the operator will automatically install/upgrade CRDs at startup.")
 	flag.StringVar(&webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
 	flag.StringVar(&webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	flag.StringVar(&webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
@@ -189,16 +182,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Install/upgrade CRDs if enabled
-	if installCRDs {
-		setupLog.Info("Installing/upgrading CRDs")
-		if err := installOrUpgradeCRDs(mgr); err != nil {
-			setupLog.Error(err, "Failed to install/upgrade CRDs")
-			os.Exit(1)
-		}
-		setupLog.Info("CRDs installed/upgraded successfully")
-	}
-
 	// Create MQTT BridgeManager
 	zapLog, err := uberzap.NewDevelopment()
 	if err != nil {
@@ -217,24 +200,48 @@ func main() {
 	mqttManager := mqtt.NewBridgeManager(mgr.GetClient(), zapLog, dbManager)
 	setupLog.Info("Created MQTT BridgeManager")
 
-	if err := (&controller.MQTTBridgeReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		Log:         zapLog.With(uberzap.String("controller", "MQTTBridge")),
-		MQTTManager: mqttManager,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "MQTTBridge")
+	// Get current namespace
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Set up Database watcher
+	dbWatcher := watcher.NewDatabaseWatcher(
+		mgr.GetClient(),
+		zapLog.With(uberzap.String("component", "database-watcher")),
+		namespace,
+		func(ctx context.Context, db *iotv1alpha1.Database) error {
+			return dbManager.Connect(ctx, db)
+		},
+	)
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&iotv1alpha1.Database{}).
+		WithEventFilter(dbWatcher.GetPredicate()).
+		Complete(dbWatcher); err != nil {
+		setupLog.Error(err, "Failed to create Database watcher")
 		os.Exit(1)
 	}
-	if err := (&controller.DatabaseReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Log:       zapLog.With(uberzap.String("controller", "Database")),
-		DBManager: dbManager,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "Database")
+	setupLog.Info("Set up Database watcher")
+
+	// Set up MQTTBridge watcher
+	bridgeWatcher := watcher.NewMQTTBridgeWatcher(
+		mgr.GetClient(),
+		zapLog.With(uberzap.String("component", "mqttbridge-watcher")),
+		namespace,
+		func(ctx context.Context, bridge *iotv1alpha1.MQTTBridge) error {
+			return mqttManager.Connect(ctx, bridge)
+		},
+	)
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&iotv1alpha1.MQTTBridge{}).
+		WithEventFilter(bridgeWatcher.GetPredicate()).
+		Complete(bridgeWatcher); err != nil {
+		setupLog.Error(err, "Failed to create MQTTBridge watcher")
 		os.Exit(1)
 	}
+	setupLog.Info("Set up MQTTBridge watcher")
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -251,64 +258,4 @@ func main() {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
-}
-
-// installOrUpgradeCRDs installs or upgrades the CRDs for this operator
-func installOrUpgradeCRDs(mgr ctrl.Manager) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	// Get the Kubernetes config
-	cfg := mgr.GetConfig()
-
-	// Create a client that can work with CRDs
-	crdScheme := runtime.NewScheme()
-	utilruntime.Must(apiextensionsv1.AddToScheme(crdScheme))
-
-	c, err := client.New(cfg, client.Options{Scheme: crdScheme})
-	if err != nil {
-		return err
-	}
-
-	// Create decoder for CRD YAML
-	decode := serializer.NewCodecFactory(crdScheme).UniversalDeserializer().Decode
-
-	// List of CRD YAML definitions (embedded in the binary)
-	crdYAMLs := []string{
-		mqttBridgeCRD,
-		deviceCRD,
-		// Note: Database CRD is now managed by database-manager operator
-	}
-
-	for _, crdYAML := range crdYAMLs {
-		obj, _, err := decode([]byte(crdYAML), nil, nil)
-		if err != nil {
-			return err
-		}
-
-		crd, ok := obj.(*apiextensionsv1.CustomResourceDefinition)
-		if !ok {
-			continue
-		}
-
-		// Try to get existing CRD
-		existingCRD := &apiextensionsv1.CustomResourceDefinition{}
-		err = c.Get(ctx, client.ObjectKey{Name: crd.Name}, existingCRD)
-		if err != nil {
-			// CRD doesn't exist, create it
-			if err := c.Create(ctx, crd); err != nil {
-				return err
-			}
-			setupLog.Info("Created CRD", "name", crd.Name)
-		} else {
-			// CRD exists, update it
-			crd.ResourceVersion = existingCRD.ResourceVersion
-			if err := c.Update(ctx, crd); err != nil {
-				return err
-			}
-			setupLog.Info("Updated CRD", "name", crd.Name)
-		}
-	}
-
-	return nil
 }
