@@ -42,10 +42,10 @@ Example 2: Connect to Database
 
 import (
 	"context"
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 )
 
-func connectToDatabase(ctx context.Context, dbManager *database.Manager, db *mqttv1alpha1.Database) error {
+func connectToDatabase(ctx context.Context, dbManager *database.Manager, db *iotv1alpha1.Database) error {
 	// Database CR example:
 	// apiVersion: mqtt.hauke.cloud/v1alpha1
 	// kind: Database
@@ -104,7 +104,7 @@ In internal/controller/device_controller.go or tasmota handler:
 
 func (r *DeviceReconciler) handleMeasurement(
 	ctx context.Context,
-	device *mqttv1alpha1.Device,
+	device *iotv1alpha1.Device,
 	payload map[string]any,
 ) error {
 	// Check if device has a sensor type

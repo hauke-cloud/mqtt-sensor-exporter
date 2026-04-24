@@ -28,7 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
@@ -42,18 +42,18 @@ var _ = Describe("Database Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		databaseCR := &mqttv1alpha1.Database{}
+		databaseCR := &iotv1alpha1.Database{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Database")
 			err := k8sClient.Get(ctx, typeNamespacedName, databaseCR)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &mqttv1alpha1.Database{
+				resource := &iotv1alpha1.Database{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: mqttv1alpha1.DatabaseSpec{
+					Spec: iotv1alpha1.DatabaseSpec{
 						Host:     "localhost",
 						Port:     5432,
 						Database: "testdb",
@@ -66,7 +66,7 @@ var _ = Describe("Database Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &mqttv1alpha1.Database{}
+			resource := &iotv1alpha1.Database{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -104,7 +104,7 @@ var _ = Describe("Database Controller", func() {
 			}
 
 			// Verify the Database CR was created
-			createdDB := &mqttv1alpha1.Database{}
+			createdDB := &iotv1alpha1.Database{}
 			err = k8sClient.Get(ctx, typeNamespacedName, createdDB)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(createdDB.Spec.Host).To(Equal("localhost"))

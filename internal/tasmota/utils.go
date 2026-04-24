@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 )
 
 // sanitizeDeviceName converts an IEEE address or device name to a valid Kubernetes resource name
@@ -82,7 +82,7 @@ func sanitizeLabel(value string) string {
 // applyCorrectionToFloat applies a correction value to a float64 measurement
 // If a correction exists for the given key in the device's corrections map, it will be added to the value
 // Corrections are stored as strings and parsed to float64
-func applyCorrectionToFloat(value float64, correctionKey string, device *mqttv1alpha1.Device) float64 {
+func applyCorrectionToFloat(value float64, correctionKey string, device *iotv1alpha1.Device) float64 {
 	if device == nil || device.Spec.Corrections == nil {
 		return value
 	}
@@ -102,7 +102,7 @@ func applyCorrectionToFloat(value float64, correctionKey string, device *mqttv1a
 // applyCorrectionToInt applies a correction value to an int measurement
 // If a correction exists for the given key in the device's corrections map, it will be added to the value
 // Corrections are stored as strings and parsed to float64, then converted to int
-func applyCorrectionToInt(value int, correctionKey string, device *mqttv1alpha1.Device) int {
+func applyCorrectionToInt(value int, correctionKey string, device *iotv1alpha1.Device) int {
 	if device == nil || device.Spec.Corrections == nil {
 		return value
 	}
@@ -121,7 +121,7 @@ func applyCorrectionToInt(value int, correctionKey string, device *mqttv1alpha1.
 
 // evaluateAlertCondition checks if an alert condition is met for a given measurement
 // Returns true if the condition is met, false otherwise
-func evaluateAlertCondition(measurementValue float64, condition *mqttv1alpha1.AlertCondition) bool {
+func evaluateAlertCondition(measurementValue float64, condition *iotv1alpha1.AlertCondition) bool {
 	if condition == nil {
 		return false
 	}
@@ -148,7 +148,7 @@ func evaluateAlertCondition(measurementValue float64, condition *mqttv1alpha1.Al
 // checkAlertConditions evaluates alert conditions using the device's measurements map
 // Returns true if any alert condition is met
 // This function uses the corrected values from status.measurements for evaluation
-func checkAlertConditions(device *mqttv1alpha1.Device) bool {
+func checkAlertConditions(device *iotv1alpha1.Device) bool {
 	if device == nil || device.Spec.AlertCondition == nil {
 		return false
 	}

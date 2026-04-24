@@ -28,7 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
 )
@@ -43,18 +43,18 @@ var _ = Describe("MQTTBridge Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		mqttbridge := &mqttv1alpha1.MQTTBridge{}
+		mqttbridge := &iotv1alpha1.MQTTBridge{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind MQTTBridge")
 			err := k8sClient.Get(ctx, typeNamespacedName, mqttbridge)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &mqttv1alpha1.MQTTBridge{
+				resource := &iotv1alpha1.MQTTBridge{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: mqttv1alpha1.MQTTBridgeSpec{
+					Spec: iotv1alpha1.MQTTBridgeSpec{
 						Host: "mqtt.test.local",
 						Port: 1883,
 					},
@@ -65,7 +65,7 @@ var _ = Describe("MQTTBridge Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &mqttv1alpha1.MQTTBridge{}
+			resource := &iotv1alpha1.MQTTBridge{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

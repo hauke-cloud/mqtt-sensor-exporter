@@ -19,7 +19,7 @@ package tasmota
 import (
 	"testing"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,7 +28,7 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 		name          string
 		value         float64
 		correctionKey string
-		device        *mqttv1alpha1.Device
+		device        *iotv1alpha1.Device
 		expected      float64
 	}{
 		{
@@ -42,8 +42,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "No corrections map",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: nil,
 				},
 			},
@@ -53,8 +53,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Empty corrections map",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{},
 				},
 			},
@@ -64,8 +64,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Correction key not found",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"humidity": "5.0",
 					},
@@ -77,8 +77,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Positive correction",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"temperature": "2.5",
 					},
@@ -90,8 +90,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Negative correction",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"temperature": "-3.2",
 					},
@@ -103,8 +103,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Multiple corrections, using correct key",
 			value:         50.0,
 			correctionKey: "humidity",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"temperature": "2.0",
 						"humidity":    "-10.5",
@@ -118,8 +118,8 @@ func TestApplyCorrectionToFloat(t *testing.T) {
 			name:          "Invalid correction string",
 			value:         20.0,
 			correctionKey: "temperature",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"temperature": "invalid",
 					},
@@ -144,7 +144,7 @@ func TestApplyCorrectionToInt(t *testing.T) {
 		name          string
 		value         int
 		correctionKey string
-		device        *mqttv1alpha1.Device
+		device        *iotv1alpha1.Device
 		expected      int
 	}{
 		{
@@ -158,8 +158,8 @@ func TestApplyCorrectionToInt(t *testing.T) {
 			name:          "No corrections map",
 			value:         100,
 			correctionKey: "battery_percentage",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: nil,
 				},
 			},
@@ -169,8 +169,8 @@ func TestApplyCorrectionToInt(t *testing.T) {
 			name:          "Positive correction",
 			value:         95,
 			correctionKey: "battery_percentage",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"battery_percentage": "5.0",
 					},
@@ -182,8 +182,8 @@ func TestApplyCorrectionToInt(t *testing.T) {
 			name:          "Negative correction",
 			value:         100,
 			correctionKey: "link_quality",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"link_quality": "-10.0",
 					},
@@ -195,8 +195,8 @@ func TestApplyCorrectionToInt(t *testing.T) {
 			name:          "Fractional correction (truncated)",
 			value:         100,
 			correctionKey: "battery_percentage",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"battery_percentage": "2.7",
 					},
@@ -208,8 +208,8 @@ func TestApplyCorrectionToInt(t *testing.T) {
 			name:          "Invalid correction string",
 			value:         100,
 			correctionKey: "battery_percentage",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					Corrections: map[string]string{
 						"battery_percentage": "not_a_number",
 					},
@@ -266,7 +266,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 	tests := []struct {
 		name             string
 		measurementValue float64
-		condition        *mqttv1alpha1.AlertCondition
+		condition        *iotv1alpha1.AlertCondition
 		expected         bool
 	}{
 		{
@@ -278,7 +278,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Above - condition met",
 			measurementValue: 26.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "above",
 				Value:       "25.0",
@@ -288,7 +288,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Above - condition not met",
 			measurementValue: 24.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "above",
 				Value:       "25.0",
@@ -298,7 +298,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Above - exactly at threshold",
 			measurementValue: 25.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "above",
 				Value:       "25.0",
@@ -308,7 +308,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Below - condition met",
 			measurementValue: 3.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "below",
 				Value:       "4.0",
@@ -318,7 +318,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Below - condition not met",
 			measurementValue: 5.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "below",
 				Value:       "4.0",
@@ -328,7 +328,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Below - exactly at threshold",
 			measurementValue: 4.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "below",
 				Value:       "4.0",
@@ -338,7 +338,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Is - condition met",
 			measurementValue: 0.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "power",
 				Operator:    "is",
 				Value:       "0.0",
@@ -348,7 +348,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Is - condition not met",
 			measurementValue: 1.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "power",
 				Operator:    "is",
 				Value:       "0.0",
@@ -358,7 +358,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Invalid operator",
 			measurementValue: 25.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "invalid",
 				Value:       "25.0",
@@ -368,7 +368,7 @@ func TestEvaluateAlertCondition(t *testing.T) {
 		{
 			name:             "Invalid value string",
 			measurementValue: 25.0,
-			condition: &mqttv1alpha1.AlertCondition{
+			condition: &iotv1alpha1.AlertCondition{
 				Measurement: "temperature",
 				Operator:    "above",
 				Value:       "not_a_number",
@@ -392,7 +392,7 @@ func TestCheckAlertConditions(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		device   *mqttv1alpha1.Device
+		device   *iotv1alpha1.Device
 		expected bool
 	}{
 		{
@@ -402,12 +402,12 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "No alert condition",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
 					AlertCondition: nil,
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"temperature": {
 							Value:    "26.0",
 							LastSeen: now,
@@ -419,15 +419,15 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Measurements map not initialized",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
+				Status: iotv1alpha1.DeviceStatus{
 					Measurements: nil,
 				},
 			},
@@ -435,16 +435,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Measurement not present",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"humidity": {
 							Value:    "50.0",
 							LastSeen: now,
@@ -456,16 +456,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Temperature above threshold - alert triggered (raw value)",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"temperature": {
 							Value:    "26.5",
 							LastSeen: now,
@@ -477,16 +477,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Temperature below threshold - no alert",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"temperature": {
 							Value:    "24.0",
 							LastSeen: now,
@@ -498,16 +498,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Temperature above threshold - alert triggered (corrected value)",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"temperature": {
 							Value:          "28.0",         // Raw value
 							CorrectedValue: strPtr("26.5"), // Corrected value > 25.0
@@ -520,16 +520,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Temperature below threshold - no alert (corrected value)",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "temperature",
 						Operator:    "above",
 						Value:       "25.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"temperature": {
 							Value:          "26.0",         // Raw value > 25.0
 							CorrectedValue: strPtr("24.0"), // But corrected value < 25.0
@@ -542,16 +542,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Humidity below threshold - alert triggered",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "humidity",
 						Operator:    "below",
 						Value:       "30.0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"humidity": {
 							Value:    "25.0",
 							LastSeen: now,
@@ -563,16 +563,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Power state is 0 - alert triggered",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "power",
 						Operator:    "is",
 						Value:       "0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"power": {
 							Value:    "0",
 							LastSeen: now,
@@ -584,16 +584,16 @@ func TestCheckAlertConditions(t *testing.T) {
 		},
 		{
 			name: "Invalid measurement value - no alert",
-			device: &mqttv1alpha1.Device{
-				Spec: mqttv1alpha1.DeviceSpec{
-					AlertCondition: &mqttv1alpha1.AlertCondition{
+			device: &iotv1alpha1.Device{
+				Spec: iotv1alpha1.DeviceSpec{
+					AlertCondition: &iotv1alpha1.AlertCondition{
 						Measurement: "contact",
 						Operator:    "above",
 						Value:       "0",
 					},
 				},
-				Status: mqttv1alpha1.DeviceStatus{
-					Measurements: map[string]mqttv1alpha1.MeasurementValue{
+				Status: iotv1alpha1.DeviceStatus{
+					Measurements: map[string]iotv1alpha1.MeasurementValue{
 						"contact": {
 							Value:    "true", // Boolean, can't be converted to float
 							LastSeen: now,

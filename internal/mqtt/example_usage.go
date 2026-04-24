@@ -46,7 +46,7 @@ package mqtt
 //     )
 //
 //     return ctrl.NewControllerManagedBy(mgr).
-//         For(&mqttv1alpha1.MQTTBridge{}).
+//         For(&iotv1alpha1.MQTTBridge{}).
 //         Complete(r)
 // }
 //

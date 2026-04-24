@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 )
 
 // StateHandler processes Tasmota state messages
@@ -63,7 +63,7 @@ func (h *StateHandler) HandleMessage(ctx context.Context, msgCtx *MessageContext
 // updateBridgeStatus updates the MQTTBridge CR status
 func (h *StateHandler) updateBridgeStatus(ctx context.Context, msgCtx *MessageContext, state *StateMessage) error {
 	// Fetch the MQTTBridge CR
-	bridge := &mqttv1alpha1.MQTTBridge{}
+	bridge := &iotv1alpha1.MQTTBridge{}
 	bridgeKey := types.NamespacedName{
 		Name:      msgCtx.BridgeName,
 		Namespace: msgCtx.BridgeNamespace,

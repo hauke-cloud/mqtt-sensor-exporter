@@ -43,11 +43,14 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd:allowDangerousTypes=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	"$(CONTROLLER_GEN)" rbac:roleName=manager-role paths="./..." output:rbac:artifacts:config=config/rbac
+	@echo "Note: CRDs are installed by their respective controllers (database-manager, mqtt-device-manager)"
+	@echo "Skipping CRD generation - mqtt-sensor-exporter only consumes existing CRDs"
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	@echo "Note: API types are imported from github.com/hauke-cloud/kubernetes-iot-api"
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

@@ -30,7 +30,6 @@ rules:
   - mqtt.hauke.cloud
   resources:
   - databases/finalizers
-  - devices/finalizers
   - mqttbridges/finalizers
   verbs:
   - update

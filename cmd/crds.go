@@ -28,6 +28,3 @@ var mqttBridgeCRD string
 
 //go:embed crd/mqtt.hauke.cloud_devices.yaml
 var deviceCRD string
-
-//go:embed crd/mqtt.hauke.cloud_databases.yaml
-var databaseCRD string

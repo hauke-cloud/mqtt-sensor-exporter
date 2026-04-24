@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 )
 
 // Manager manages database connections and measurement storage
@@ -47,7 +47,7 @@ type Manager struct {
 
 // Connection represents a single database connection with its handlers
 type Connection struct {
-	database          *mqttv1alpha1.Database
+	database          *iotv1alpha1.Database
 	db                *gorm.DB
 	moistureHandler   *MoistureHandler
 	waterLevelHandler *WaterLevelHandler
@@ -68,7 +68,7 @@ func NewManager(c client.Client, log *zap.Logger) *Manager {
 }
 
 // Connect establishes a connection to a database and initializes handlers
-func (m *Manager) Connect(ctx context.Context, database *mqttv1alpha1.Database) error {
+func (m *Manager) Connect(ctx context.Context, database *iotv1alpha1.Database) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -299,7 +299,7 @@ func (m *Manager) StoreMeasurement(ctx context.Context, deviceID, sensorType str
 }
 
 // buildDSN constructs the PostgreSQL connection string
-func (m *Manager) buildDSN(ctx context.Context, database *mqttv1alpha1.Database) (string, *tls.Config, error) {
+func (m *Manager) buildDSN(ctx context.Context, database *iotv1alpha1.Database) (string, *tls.Config, error) {
 	dsn := fmt.Sprintf("host=%s port=%d dbname=%s user=%s",
 		database.Spec.Host,
 		database.Spec.Port,

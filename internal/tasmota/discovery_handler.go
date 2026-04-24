@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 )
 
 // MQTTPublisher is the interface for publishing MQTT commands
@@ -162,7 +162,7 @@ func (h *DiscoveryHandler) createOrUpdateDevice(ctx context.Context, msgCtx *Mes
 		zap.String("deviceName", deviceName))
 
 	// Check if device already exists (by IEEE address label)
-	deviceList := &mqttv1alpha1.DeviceList{}
+	deviceList := &iotv1alpha1.DeviceList{}
 	if err := h.client.List(ctx, deviceList, client.InNamespace(msgCtx.BridgeNamespace),
 		client.MatchingLabels{
 			"mqtt.hauke.cloud/ieee-addr": sanitizeLabel(ieeeAddr),
@@ -170,7 +170,7 @@ func (h *DiscoveryHandler) createOrUpdateDevice(ctx context.Context, msgCtx *Mes
 		return fmt.Errorf("failed to list devices: %w", err)
 	}
 
-	var existingDevice *mqttv1alpha1.Device
+	var existingDevice *iotv1alpha1.Device
 	if len(deviceList.Items) > 0 {
 		existingDevice = &deviceList.Items[0]
 	}
@@ -187,7 +187,7 @@ func (h *DiscoveryHandler) createOrUpdateDevice(ctx context.Context, msgCtx *Mes
 // updateExistingDevice updates an existing Device CR
 //
 //nolint:gocyclo // Complex update logic is necessary for handling all device fields
-func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *mqttv1alpha1.Device, device *ZbStatus3DeviceEntry, _ *MessageContext) error {
+func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *iotv1alpha1.Device, device *ZbStatus3DeviceEntry, _ *MessageContext) error {
 	h.log.Debug("Updating existing device",
 		zap.String("device", existing.Name),
 		zap.String("ieeeAddr", device.IEEEAddr))
@@ -297,7 +297,7 @@ func (h *DiscoveryHandler) updateExistingDevice(ctx context.Context, existing *m
 
 // createNewDevice creates a new Device CR
 func (h *DiscoveryHandler) createNewDevice(ctx context.Context, msgCtx *MessageContext, device *ZbStatus3DeviceEntry, deviceName, ieeeAddr, friendlyName string) error {
-	newDevice := &mqttv1alpha1.Device{
+	newDevice := &iotv1alpha1.Device{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deviceName,
 			Namespace: msgCtx.BridgeNamespace,
@@ -307,15 +307,15 @@ func (h *DiscoveryHandler) createNewDevice(ctx context.Context, msgCtx *MessageC
 				"mqtt.hauke.cloud/ieee-addr":   sanitizeLabel(ieeeAddr),
 			},
 		},
-		Spec: mqttv1alpha1.DeviceSpec{
-			BridgeRef: mqttv1alpha1.BridgeReference{
+		Spec: iotv1alpha1.DeviceSpec{
+			BridgeRef: iotv1alpha1.BridgeReference{
 				Name:      msgCtx.BridgeName,
 				Namespace: msgCtx.BridgeNamespace,
 			},
 			IEEEAddr:     ieeeAddr,
 			FriendlyName: friendlyName,
 		},
-		Status: mqttv1alpha1.DeviceStatus{
+		Status: iotv1alpha1.DeviceStatus{
 			ModelID:      device.ModelId,
 			Manufacturer: device.Manufacturer,
 		},

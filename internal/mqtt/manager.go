@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/tasmota"
 )
@@ -53,7 +53,7 @@ type BridgeManager struct {
 
 // BridgeConnection represents a single MQTT bridge connection
 type BridgeConnection struct {
-	bridge     *mqttv1alpha1.MQTTBridge
+	bridge     *iotv1alpha1.MQTTBridge
 	mqttClient mqtt.Client
 	connected  bool
 	lastSeen   time.Time
@@ -74,7 +74,7 @@ func NewBridgeManager(c client.Client, log *zap.Logger, dbManager *database.Mana
 }
 
 // Connect establishes connection to an MQTT bridge
-func (m *BridgeManager) Connect(ctx context.Context, bridge *mqttv1alpha1.MQTTBridge) error {
+func (m *BridgeManager) Connect(ctx context.Context, bridge *iotv1alpha1.MQTTBridge) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -205,7 +205,7 @@ func (m *BridgeManager) IsConnected(namespace, name string) bool {
 }
 
 // getCredentials retrieves MQTT credentials from a Kubernetes Secret
-func (m *BridgeManager) getCredentials(ctx context.Context, bridge *mqttv1alpha1.MQTTBridge) (string, string, error) {
+func (m *BridgeManager) getCredentials(ctx context.Context, bridge *iotv1alpha1.MQTTBridge) (string, string, error) {
 	secretRef := bridge.Spec.CredentialsSecretRef
 	namespace := secretRef.Namespace
 	if namespace == "" {
@@ -272,7 +272,7 @@ func (m *BridgeManager) subscribeToTopics(ctx context.Context, conn *BridgeConne
 		default:
 			// Generic: subscribe to topicPrefix/#
 			topic := fmt.Sprintf("%s/#", conn.bridge.Spec.TopicPrefix)
-			topicSub := mqttv1alpha1.TopicSubscription{
+			topicSub := iotv1alpha1.TopicSubscription{
 				Topic: topic,
 				Type:  "generic",
 			}
@@ -282,7 +282,7 @@ func (m *BridgeManager) subscribeToTopics(ctx context.Context, conn *BridgeConne
 }
 
 // subscribeToTopic subscribes to a single topic
-func (m *BridgeManager) subscribeToTopic(ctx context.Context, conn *BridgeConnection, topicSub *mqttv1alpha1.TopicSubscription) {
+func (m *BridgeManager) subscribeToTopic(ctx context.Context, conn *BridgeConnection, topicSub *iotv1alpha1.TopicSubscription) {
 	// Check if client is still connected
 	if conn.mqttClient == nil || !conn.mqttClient.IsConnected() {
 		m.log.Debug("MQTT client not connected, skipping subscription",
@@ -313,7 +313,7 @@ func (m *BridgeManager) subscribeToTopic(ctx context.Context, conn *BridgeConnec
 }
 
 // handleMessage processes an incoming MQTT message
-func (m *BridgeManager) handleMessage(ctx context.Context, conn *BridgeConnection, topicSub *mqttv1alpha1.TopicSubscription, msg mqtt.Message) {
+func (m *BridgeManager) handleMessage(ctx context.Context, conn *BridgeConnection, topicSub *iotv1alpha1.TopicSubscription, msg mqtt.Message) {
 	m.log.Info("Received message",
 		zap.String("topic", msg.Topic()),
 		zap.String("type", topicSub.Type),
@@ -352,7 +352,7 @@ func (m *BridgeManager) subscribeToZigbee2MQTT(ctx context.Context, conn *Bridge
 	// Subscribe to bridge/devices for discovery
 	if conn.bridge.Spec.DiscoveryEnabled == nil || *conn.bridge.Spec.DiscoveryEnabled {
 		topic := fmt.Sprintf("%s/bridge/devices", conn.bridge.Spec.TopicPrefix)
-		topicSub := mqttv1alpha1.TopicSubscription{
+		topicSub := iotv1alpha1.TopicSubscription{
 			Topic: topic,
 			Type:  "bridge",
 		}
@@ -361,7 +361,7 @@ func (m *BridgeManager) subscribeToZigbee2MQTT(ctx context.Context, conn *Bridge
 
 	// Subscribe to all device messages
 	topic := fmt.Sprintf("%s/+", conn.bridge.Spec.TopicPrefix)
-	topicSub := mqttv1alpha1.TopicSubscription{
+	topicSub := iotv1alpha1.TopicSubscription{
 		Topic: topic,
 		Type:  "device",
 	}
@@ -390,7 +390,7 @@ func (m *BridgeManager) subscribeToTasmotaFallback(ctx context.Context, conn *Br
 	}
 
 	for _, t := range topics {
-		topicSub := mqttv1alpha1.TopicSubscription{
+		topicSub := iotv1alpha1.TopicSubscription{
 			Topic: t.pattern,
 			Type:  t.msgType,
 		}

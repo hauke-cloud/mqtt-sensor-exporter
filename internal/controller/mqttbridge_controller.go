@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
 )
 
@@ -61,7 +61,7 @@ func (r *MQTTBridgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	log.Info("Reconciling MQTTBridge")
 
 	// Fetch the MQTTBridge instance
-	bridge := &mqttv1alpha1.MQTTBridge{}
+	bridge := &iotv1alpha1.MQTTBridge{}
 	err := r.Get(ctx, req.NamespacedName, bridge)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -134,7 +134,7 @@ func (r *MQTTBridgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // handleDeletion handles the deletion of MQTTBridge
-func (r *MQTTBridgeReconciler) handleDeletion(ctx context.Context, bridge *mqttv1alpha1.MQTTBridge, log *zap.Logger) (ctrl.Result, error) {
+func (r *MQTTBridgeReconciler) handleDeletion(ctx context.Context, bridge *iotv1alpha1.MQTTBridge, log *zap.Logger) (ctrl.Result, error) {
 	if controllerutil.ContainsFinalizer(bridge, mqttBridgeFinalizer) {
 		log.Info("Disconnecting MQTT bridge")
 
@@ -156,7 +156,7 @@ func (r *MQTTBridgeReconciler) handleDeletion(ctx context.Context, bridge *mqttv
 // SetupWithManager sets up the controller with the Manager.
 func (r *MQTTBridgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mqttv1alpha1.MQTTBridge{}).
+		For(&iotv1alpha1.MQTTBridge{}).
 		Named("mqttbridge").
 		Complete(r)
 }

@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 )
 
@@ -78,12 +78,12 @@ func (h *TelemetryHandler) HandleMessage(ctx context.Context, msgCtx *MessageCon
 func (h *TelemetryHandler) processZigbeeDevice(ctx context.Context, msgCtx *MessageContext, shortAddr string, device *ZigbeeDevice) error {
 	// Find device by short address in status
 	// List all devices and find the one with matching shortAddr
-	deviceList := &mqttv1alpha1.DeviceList{}
+	deviceList := &iotv1alpha1.DeviceList{}
 	if err := h.client.List(ctx, deviceList, client.InNamespace(msgCtx.BridgeNamespace)); err != nil {
 		return err
 	}
 
-	var existingDevice *mqttv1alpha1.Device
+	var existingDevice *iotv1alpha1.Device
 	for i := range deviceList.Items {
 		if deviceList.Items[i].Status.ShortAddr == shortAddr {
 			existingDevice = &deviceList.Items[i]
@@ -105,7 +105,7 @@ func (h *TelemetryHandler) processZigbeeDevice(ctx context.Context, msgCtx *Mess
 }
 
 // updateDevice updates an existing Device CR with telemetry data
-func (h *TelemetryHandler) updateDevice(ctx context.Context, device *mqttv1alpha1.Device, zbDevice *ZigbeeDevice) error {
+func (h *TelemetryHandler) updateDevice(ctx context.Context, device *iotv1alpha1.Device, zbDevice *ZigbeeDevice) error {
 	// Update status
 	h.updateDeviceStatus(device, zbDevice)
 
@@ -132,7 +132,7 @@ func (h *TelemetryHandler) updateDevice(ctx context.Context, device *mqttv1alpha
 }
 
 // storeMeasurement stores the measurement to the database with corrections applied
-func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1alpha1.Device, zbDevice *ZigbeeDevice) error {
+func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *iotv1alpha1.Device, zbDevice *ZigbeeDevice) error {
 	// Build payload from Zigbee device data
 	payload := make(map[string]any)
 
@@ -241,7 +241,7 @@ func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *mqttv1a
 }
 
 // updateDeviceStatus updates the device status from Zigbee device data
-func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDevice *ZigbeeDevice) {
+func (h *TelemetryHandler) updateDeviceStatus(device *iotv1alpha1.Device, zbDevice *ZigbeeDevice) {
 	now := metav1.Now()
 	device.Status.LastSeen = &now
 	device.Status.Available = true
@@ -266,7 +266,7 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 
 	// Initialize measurements map if nil
 	if device.Status.Measurements == nil {
-		device.Status.Measurements = make(map[string]mqttv1alpha1.MeasurementValue)
+		device.Status.Measurements = make(map[string]iotv1alpha1.MeasurementValue)
 	}
 
 	// Process measurements and build maps
@@ -310,13 +310,13 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 
 		// Process based on value type and create MeasurementValue
 		correctionStr, hasCorrection := device.Spec.Corrections[key]
-		var mv mqttv1alpha1.MeasurementValue
+		var mv iotv1alpha1.MeasurementValue
 
 		switch v := value.(type) {
 		case float64:
 			correctedValue := applyCorrectionToFloat(v, key, device)
 			measurements[key] = correctedValue
-			mv = mqttv1alpha1.MeasurementValue{
+			mv = iotv1alpha1.MeasurementValue{
 				Value:    formatFloat(v),
 				LastSeen: now,
 			}
@@ -329,7 +329,7 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 		case int:
 			correctedValue := applyCorrectionToInt(v, key, device)
 			measurements[key] = correctedValue
-			mv = mqttv1alpha1.MeasurementValue{
+			mv = iotv1alpha1.MeasurementValue{
 				Value:    formatInt(v),
 				LastSeen: now,
 			}
@@ -341,7 +341,7 @@ func (h *TelemetryHandler) updateDeviceStatus(device *mqttv1alpha1.Device, zbDev
 
 		case bool:
 			measurements[key] = v
-			mv = mqttv1alpha1.MeasurementValue{
+			mv = iotv1alpha1.MeasurementValue{
 				Value:    formatBool(v),
 				LastSeen: now,
 			}

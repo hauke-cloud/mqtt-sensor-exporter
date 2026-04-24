@@ -41,7 +41,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	mqttv1alpha1 "github.com/hauke-cloud/mqtt-sensor-exporter/api/v1alpha1"
+	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/controller"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
@@ -56,7 +56,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(mqttv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(iotv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -226,15 +226,6 @@ func main() {
 		setupLog.Error(err, "Failed to create controller", "controller", "MQTTBridge")
 		os.Exit(1)
 	}
-	if err := (&controller.DeviceReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		Log:         zapLog.With(uberzap.String("controller", "Device")),
-		MQTTManager: mqttManager,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "Device")
-		os.Exit(1)
-	}
 	if err := (&controller.DatabaseReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
@@ -286,7 +277,7 @@ func installOrUpgradeCRDs(mgr ctrl.Manager) error {
 	crdYAMLs := []string{
 		mqttBridgeCRD,
 		deviceCRD,
-		databaseCRD,
+		// Note: Database CRD is now managed by database-manager operator
 	}
 
 	for _, crdYAML := range crdYAMLs {
