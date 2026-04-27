@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 
 	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
@@ -104,16 +103,10 @@ func (h *TelemetryHandler) processZigbeeDevice(ctx context.Context, msgCtx *Mess
 	return h.updateDevice(ctx, existingDevice, device)
 }
 
-// updateDevice updates an existing Device CR with telemetry data
+// updateDevice stores sensor measurement to database without modifying Device CR
+// mqtt-sensor-exporter is read-only and does not update device status
 func (h *TelemetryHandler) updateDevice(ctx context.Context, device *iotv1alpha1.Device, zbDevice *ZigbeeDevice) error {
-	// Update status
-	h.updateDeviceStatus(device, zbDevice)
-
-	if err := h.client.Status().Update(ctx, device); err != nil {
-		return err
-	}
-
-	h.log.Debug("Updated Device CR",
+	h.log.Debug("Processing telemetry for device",
 		zap.String("device", device.Name),
 		zap.String("ieee_addr", device.Spec.IEEEAddr))
 
@@ -124,7 +117,7 @@ func (h *TelemetryHandler) updateDevice(ctx context.Context, device *iotv1alpha1
 				zap.String("device", device.Name),
 				zap.String("sensorType", device.Spec.SensorType),
 				zap.Error(err))
-			// Don't fail the update if database storage fails
+			return err
 		}
 	}
 
@@ -238,127 +231,4 @@ func (h *TelemetryHandler) storeMeasurement(ctx context.Context, device *iotv1al
 		zap.Int("payloadSize", len(payload)))
 
 	return nil
-}
-
-// updateDeviceStatus updates the device status from Zigbee device data
-func (h *TelemetryHandler) updateDeviceStatus(device *iotv1alpha1.Device, zbDevice *ZigbeeDevice) {
-	now := metav1.Now()
-	device.Status.LastSeen = &now
-	device.Status.Available = true
-
-	// Update link quality
-	if zbDevice.LinkQuality != nil {
-		lq := int32(*zbDevice.LinkQuality)
-		device.Status.LinkQuality = &lq
-	}
-
-	// Update battery level
-	if zbDevice.BatteryPercentage != nil {
-		battery := int32(*zbDevice.BatteryPercentage)
-		device.Status.BatteryLevel = &battery
-	}
-
-	// Update power state - store separately for stable monitoring
-	if zbDevice.Power != nil {
-		powerState := int32(*zbDevice.Power)
-		device.Status.LastPowerState = &powerState
-	}
-
-	// Initialize measurements map if nil
-	if device.Status.Measurements == nil {
-		device.Status.Measurements = make(map[string]iotv1alpha1.MeasurementValue)
-	}
-
-	// Process measurements and build maps
-	measurements := make(map[string]any)
-	capabilities := []string{}
-
-	// Map of field names to their measurement keys and whether they should be in capabilities
-	type fieldInfo struct {
-		key             string
-		addToCapability bool
-	}
-
-	fieldMapping := map[string]fieldInfo{
-		"Temperature":           {"temperature", true},
-		"Humidity":              {"humidity", true},
-		"Pressure":              {"pressure", true},
-		"Voltage":               {"voltage", false},
-		"Power":                 {"power", true},
-		"Contact":               {"contact", true},
-		"Occupancy":             {"occupancy", true},
-		"WaterLeak":             {"water_leak", true},
-		"WaterLevel":            {"water_level", true},
-		"LastValveOpenDuration": {"last_valve_open_duration", false},
-		"IrrigationStartTime":   {"irrigation_start_time", false},
-		"IrrigationEndTime":     {"irrigation_end_time", false},
-		"DailyIrrigationVolume": {"daily_irrigation_volume", false},
-		"LinkQuality":           {"link_quality", false},
-		"Endpoint":              {"endpoint", false},
-	}
-
-	for fieldName, info := range fieldMapping {
-		value, ok := getFieldValue(zbDevice, fieldName)
-		if !ok {
-			continue
-		}
-
-		key := info.key
-		if info.addToCapability {
-			capabilities = append(capabilities, key)
-		}
-
-		// Process based on value type and create MeasurementValue
-		correctionStr, hasCorrection := device.Spec.Corrections[key]
-		var mv iotv1alpha1.MeasurementValue
-
-		switch v := value.(type) {
-		case float64:
-			correctedValue := applyCorrectionToFloat(v, key, device)
-			measurements[key] = correctedValue
-			mv = iotv1alpha1.MeasurementValue{
-				Value:    formatFloat(v),
-				LastSeen: now,
-			}
-			if hasCorrection {
-				mv.Correction = &correctionStr
-				correctedStr := formatFloat(correctedValue)
-				mv.CorrectedValue = &correctedStr
-			}
-
-		case int:
-			correctedValue := applyCorrectionToInt(v, key, device)
-			measurements[key] = correctedValue
-			mv = iotv1alpha1.MeasurementValue{
-				Value:    formatInt(v),
-				LastSeen: now,
-			}
-			if hasCorrection {
-				mv.Correction = &correctionStr
-				correctedStr := formatInt(correctedValue)
-				mv.CorrectedValue = &correctedStr
-			}
-
-		case bool:
-			measurements[key] = v
-			mv = iotv1alpha1.MeasurementValue{
-				Value:    formatBool(v),
-				LastSeen: now,
-			}
-		}
-
-		device.Status.Measurements[key] = mv
-	}
-
-	// Convert to JSON string for backward compatibility
-	if len(measurements) > 0 {
-		if jsonData, err := json.Marshal(measurements); err == nil {
-			device.Status.LastMeasurement = string(jsonData)
-		}
-	}
-
-	device.Status.Capabilities = capabilities
-
-	// Evaluate alert conditions on the corrected measurements
-	device.Status.Alert = checkAlertConditions(device)
 }

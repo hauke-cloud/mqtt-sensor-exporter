@@ -18,10 +18,8 @@ package watcher
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -58,12 +56,6 @@ func (w *MQTTBridgeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Check if already registered
-	if w.isServiceRegistered(bridge.Status.ConnectedServices) {
-		log.Debug("Already registered, skipping")
-		return ctrl.Result{}, nil
-	}
-
 	// Call onConnect callback
 	if w.onConnect != nil {
 		if err := w.onConnect(ctx, bridge); err != nil {
@@ -72,45 +64,7 @@ func (w *MQTTBridgeWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	// Register this service as connected
-	if err := w.registerService(ctx, bridge); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
-}
-
-// isServiceRegistered checks if this service is already in the ConnectedServices list
-func (w *MQTTBridgeWatcher) isServiceRegistered(services []iotv1alpha1.ConnectedService) bool {
-	for _, svc := range services {
-		if svc.Name == serviceName {
-			return true
-		}
-	}
-	return false
-}
-
-// registerService registers this service in the MQTTBridge's ConnectedServices status
-func (w *MQTTBridgeWatcher) registerService(ctx context.Context, bridge *iotv1alpha1.MQTTBridge) error {
-	// Check if already registered
-	if w.isServiceRegistered(bridge.Status.ConnectedServices) {
-		return nil
-	}
-
-	// Add this service to ConnectedServices
-	patch := client.MergeFrom(bridge.DeepCopy())
-	now := metav1.Now()
-	bridge.Status.ConnectedServices = append(bridge.Status.ConnectedServices, iotv1alpha1.ConnectedService{
-		Name:         serviceName,
-		Namespace:    w.namespace,
-		LastSeenTime: &now,
-	})
-
-	w.log.Info("Registering service with MQTT bridge",
-		zap.String("bridge", fmt.Sprintf("%s/%s", bridge.Namespace, bridge.Name)),
-		zap.String("service", serviceName))
-
-	return w.client.Status().Patch(ctx, bridge, patch)
 }
 
 // GetPredicate returns a predicate that triggers on new resources and generation changes

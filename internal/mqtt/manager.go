@@ -19,9 +19,7 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
@@ -68,8 +66,8 @@ func NewBridgeManager(c client.Client, log *zap.Logger, dbManager *database.Mana
 		bridges:   make(map[string]*BridgeConnection),
 		dbManager: dbManager,
 	}
-	// Create dispatcher with self as MQTT publisher and database manager
-	m.tasmotaDispatcher = tasmota.NewDispatcher(c, log.With(zap.String("component", "tasmota")), m, dbManager)
+	// Create dispatcher with database manager
+	m.tasmotaDispatcher = tasmota.NewDispatcher(c, log.With(zap.String("component", "tasmota")), dbManager)
 	return m
 }
 
@@ -252,32 +250,48 @@ func (m *BridgeManager) onConnectionLost(conn *BridgeConnection, err error) {
 
 // subscribeToTopics subscribes to all configured topics for a bridge
 func (m *BridgeManager) subscribeToTopics(ctx context.Context, conn *BridgeConnection) {
-	m.log.Info("Subscribing to topics",
-		zap.String("bridge", conn.bridge.Name),
-		zap.Int("topicCount", len(conn.bridge.Spec.Topics)))
-
-	// Subscribe to each configured topic
-	for _, topicSub := range conn.bridge.Spec.Topics {
-		m.subscribeToTopic(ctx, conn, &topicSub)
+	// mqtt-sensor-exporter only handles sensor data topics
+	sensorTopicTypes := map[string]bool{
+		"telemetry": true,
+		"sensor":    true,
 	}
 
-	// Fallback: If no topics configured, use TopicPrefix (backward compatibility)
-	if len(conn.bridge.Spec.Topics) == 0 && conn.bridge.Spec.TopicPrefix != "" {
-		// Subscribe based on device type
-		switch conn.bridge.Spec.DeviceType {
-		case deviceTypeZigbee2MQTT:
-			m.subscribeToZigbee2MQTT(ctx, conn)
-		case deviceTypeTasmota:
-			m.subscribeToTasmotaFallback(ctx, conn)
-		default:
-			// Generic: subscribe to topicPrefix/#
-			topic := fmt.Sprintf("%s/#", conn.bridge.Spec.TopicPrefix)
-			topicSub := iotv1alpha1.TopicSubscription{
-				Topic: topic,
-				Type:  "generic",
+	// Prioritize SensorTopics (new field)
+	if len(conn.bridge.Spec.SensorTopics) > 0 {
+		m.log.Info("Subscribing to sensor topics",
+			zap.String("bridge", conn.bridge.Name),
+			zap.Int("topicCount", len(conn.bridge.Spec.SensorTopics)))
+
+		for _, topicSub := range conn.bridge.Spec.SensorTopics {
+			// Only subscribe to sensor data topics
+			if sensorTopicTypes[topicSub.Type] {
+				m.subscribeToTopic(ctx, conn, &topicSub)
+			} else {
+				m.log.Debug("Skipping non-sensor topic type",
+					zap.String("topic", topicSub.Topic),
+					zap.String("type", topicSub.Type))
 			}
-			m.subscribeToTopic(ctx, conn, &topicSub)
 		}
+		return
+	}
+
+	// Backward compatibility: fallback to Topics field
+	if len(conn.bridge.Spec.Topics) > 0 {
+		m.log.Info("Subscribing to topics (legacy field)",
+			zap.String("bridge", conn.bridge.Name),
+			zap.Int("topicCount", len(conn.bridge.Spec.Topics)))
+
+		for _, topicSub := range conn.bridge.Spec.Topics {
+			// Only subscribe to sensor data topics
+			if sensorTopicTypes[topicSub.Type] {
+				m.subscribeToTopic(ctx, conn, &topicSub)
+			} else {
+				m.log.Debug("Skipping non-sensor topic type",
+					zap.String("topic", topicSub.Topic),
+					zap.String("type", topicSub.Type))
+			}
+		}
+		return
 	}
 }
 
@@ -347,185 +361,9 @@ func (m *BridgeManager) handleMessage(ctx context.Context, conn *BridgeConnectio
 	}
 }
 
-// subscribeToZigbee2MQTT subscribes to Zigbee2MQTT topics (backward compatibility)
-func (m *BridgeManager) subscribeToZigbee2MQTT(ctx context.Context, conn *BridgeConnection) {
-	// Subscribe to bridge/devices for discovery
-	if conn.bridge.Spec.DiscoveryEnabled == nil || *conn.bridge.Spec.DiscoveryEnabled {
-		topic := fmt.Sprintf("%s/bridge/devices", conn.bridge.Spec.TopicPrefix)
-		topicSub := iotv1alpha1.TopicSubscription{
-			Topic: topic,
-			Type:  "bridge",
-		}
-		m.subscribeToTopic(ctx, conn, &topicSub)
-	}
-
-	// Subscribe to all device messages
-	topic := fmt.Sprintf("%s/+", conn.bridge.Spec.TopicPrefix)
-	topicSub := iotv1alpha1.TopicSubscription{
-		Topic: topic,
-		Type:  "device",
-	}
-	m.subscribeToTopic(ctx, conn, &topicSub)
-}
-
-// subscribeToTasmotaFallback subscribes to default Tasmota topics (backward compatibility)
-func (m *BridgeManager) subscribeToTasmotaFallback(ctx context.Context, conn *BridgeConnection) {
-	prefix := conn.bridge.Spec.TopicPrefix
-	bridgeName := conn.bridge.Spec.BridgeName
-
-	// If bridgeName specified, use it; otherwise use wildcard
-	devicePattern := "+"
-	if bridgeName != "" {
-		devicePattern = bridgeName
-	}
-
-	// Subscribe to common Tasmota topics
-	topics := []struct {
-		pattern string
-		msgType string
-	}{
-		{fmt.Sprintf("%s/%s/SENSOR", prefix, devicePattern), "telemetry"},
-		{fmt.Sprintf("%s/%s/STATE", prefix, devicePattern), "state"},
-		{fmt.Sprintf("%s/%s/RESULT", prefix, devicePattern), "status"},
-	}
-
-	for _, t := range topics {
-		topicSub := iotv1alpha1.TopicSubscription{
-			Topic: t.pattern,
-			Type:  t.msgType,
-		}
-		m.subscribeToTopic(ctx, conn, &topicSub)
-	}
-}
-
-// The following methods are removed as they are no longer needed:
-// - handleDeviceDiscovery (replaced by Tasmota dispatcher)
-// - handleDeviceMessage (replaced by handleMessage)
-// The following methods are removed as they are no longer needed:
-// - handleDeviceDiscovery (replaced by Tasmota dispatcher)
-// - handleDeviceMessage (replaced by handleMessage)
-
-// PublishCommand publishes a command to a device
-// For Tasmota: publishes to cmnd/<bridge>/ZbSend with device address
-// For Zigbee2MQTT: publishes to <prefix>/<device>/set
-func (m *BridgeManager) PublishCommand(namespace, bridgeName, deviceAddr string, command map[string]any) error {
-	m.mu.RLock()
-	key := fmt.Sprintf("%s/%s", namespace, bridgeName)
-	conn, ok := m.bridges[key]
-	m.mu.RUnlock()
-
-	if !ok || conn.mqttClient == nil {
-		return fmt.Errorf("bridge not connected: %s", key)
-	}
-
-	var topic string
-	var payload []byte
-	var err error
-
-	// Determine topic and payload based on device type
-	switch conn.bridge.Spec.DeviceType {
-	case deviceTypeTasmota:
-		// Tasmota: cmnd/<bridgeName>/ZbSend {"Device":"0x1234","Power":"ON"}
-		tasmotaBridgeName := conn.bridge.Spec.BridgeName
-		if tasmotaBridgeName == "" {
-			return fmt.Errorf("bridgeName not configured for Tasmota bridge")
-		}
-		topic = fmt.Sprintf("cmnd/%s/ZbSend", tasmotaBridgeName)
-
-		// Wrap command with Device field
-		zbCommand := map[string]any{
-			"Device": deviceAddr,
-		}
-		maps.Copy(zbCommand, command)
-		payload, err = json.Marshal(zbCommand)
-
-	case deviceTypeZigbee2MQTT:
-		// Zigbee2MQTT: <prefix>/<friendlyName>/set
-		topic = fmt.Sprintf("%s/%s/set", conn.bridge.Spec.TopicPrefix, deviceAddr)
-		payload, err = json.Marshal(command)
-
-	default:
-		return fmt.Errorf("unsupported device type: %s", conn.bridge.Spec.DeviceType)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to marshal command: %w", err)
-	}
-
-	token := conn.mqttClient.Publish(topic, 0, false, payload)
-	if token.Wait() && token.Error() != nil {
-		return fmt.Errorf("failed to publish command: %w", token.Error())
-	}
-
-	m.log.Info("Published command to device",
-		zap.String("device", deviceAddr),
-		zap.String("topic", topic),
-		zap.String("bridge", bridgeName))
-	return nil
-}
-
-// PublishTasmotaCommand publishes a raw command to a Tasmota bridge
-// Topic format: cmnd/<bridgeName>/<command>
-// Payload can be empty string for simple commands or a value for commands with parameters
-func (m *BridgeManager) PublishTasmotaCommand(namespace, bridgeName, command, payload string) error {
-	m.mu.RLock()
-	key := fmt.Sprintf("%s/%s", namespace, bridgeName)
-	conn, ok := m.bridges[key]
-	m.mu.RUnlock()
-
-	if !ok || conn.mqttClient == nil {
-		return fmt.Errorf("bridge not connected: %s", key)
-	}
-
-	if conn.bridge.Spec.DeviceType != "tasmota" {
-		return fmt.Errorf("bridge is not a Tasmota device type: %s", conn.bridge.Spec.DeviceType)
-	}
-
-	tasmotaBridgeName := conn.bridge.Spec.BridgeName
-	if tasmotaBridgeName == "" {
-		return fmt.Errorf("bridgeName not configured for Tasmota bridge")
-	}
-
-	topic := fmt.Sprintf("cmnd/%s/%s", tasmotaBridgeName, command)
-
-	token := conn.mqttClient.Publish(topic, 0, false, []byte(payload))
-	if token.Wait() && token.Error() != nil {
-		return fmt.Errorf("failed to publish command: %w", token.Error())
-	}
-
-	m.log.Info("Published Tasmota command",
-		zap.String("command", command),
-		zap.String("topic", topic),
-		zap.String("payload", payload),
-		zap.String("bridge", bridgeName))
-	return nil
-}
-
-// TriggerDeviceDiscovery triggers device discovery for a Tasmota bridge
-// Sends ZbStatus1 command to get list of devices
-func (m *BridgeManager) TriggerDeviceDiscovery(namespace, bridgeName string) error {
-	m.mu.RLock()
-	key := fmt.Sprintf("%s/%s", namespace, bridgeName)
-	conn, ok := m.bridges[key]
-	m.mu.RUnlock()
-
-	if !ok || conn.mqttClient == nil {
-		return fmt.Errorf("bridge not connected: %s", key)
-	}
-
-	if conn.bridge.Spec.DeviceType != "tasmota" {
-		m.log.Debug("Skipping discovery for non-Tasmota bridge",
-			zap.String("bridge", bridgeName),
-			zap.String("deviceType", conn.bridge.Spec.DeviceType))
-		return nil
-	}
-
-	// Send ZbStatus1 command to discover devices
-	if err := m.PublishTasmotaCommand(namespace, bridgeName, "ZbStatus1", ""); err != nil {
-		return fmt.Errorf("failed to trigger discovery: %w", err)
-	}
-
-	m.log.Debug("Triggered device discovery",
-		zap.String("bridge", bridgeName))
-	return nil
-}
+// The following methods were removed as they are no longer needed in mqtt-sensor-exporter:
+// - subscribeToZigbee2MQTT (TopicPrefix removed, use Topics field instead)
+// - subscribeToTasmotaFallback (TopicPrefix removed, use Topics field instead)
+// - PublishCommand (command publishing moved to mqtt-device-manager)
+// - PublishTasmotaCommand (command publishing moved to mqtt-device-manager)
+// - TriggerDeviceDiscovery (device discovery moved to mqtt-device-manager)

@@ -113,11 +113,11 @@ copy-crds: manifests ## Copy CRDs to cmd directory for embedding
 	@cp config/crd/bases/*.yaml cmd/crd/
 
 .PHONY: build
-build: copy-crds generate fmt vet ## Build manager binary.
+build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager ./cmd/...
 
 .PHONY: run
-run: copy-crds generate fmt vet ## Run a controller from your host.
+run: generate fmt vet ## Run a controller from your host.
 	go run ./cmd/...
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.

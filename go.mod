@@ -5,7 +5,7 @@ go 1.25.3
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/hauke-cloud/kubernetes-iot-api v0.0.2
+	github.com/hauke-cloud/kubernetes-iot-api v0.0.4
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
@@ -13,7 +13,6 @@ require (
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 	k8s.io/api v0.35.0
-	k8s.io/apiextensions-apiserver v0.35.0
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
 	sigs.k8s.io/controller-runtime v0.23.3
@@ -100,6 +99,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	k8s.io/apiextensions-apiserver v0.35.0 // indirect
 	k8s.io/apiserver v0.35.0 // indirect
 	k8s.io/component-base v0.35.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect

@@ -18,10 +18,8 @@ package watcher
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -62,15 +60,6 @@ func (w *DatabaseWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Only process spec changes (using generation)
-	if database.Status.ObservedGeneration != nil && *database.Status.ObservedGeneration == database.Generation {
-		// Check if already registered
-		if w.isServiceRegistered(database.Status.ConnectedServices) {
-			log.Debug("Already registered, skipping")
-			return ctrl.Result{}, nil
-		}
-	}
-
 	// Call onConnect callback
 	if w.onConnect != nil {
 		if err := w.onConnect(ctx, database); err != nil {
@@ -79,45 +68,7 @@ func (w *DatabaseWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 	}
 
-	// Register this service as connected
-	if err := w.registerService(ctx, database); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
-}
-
-// isServiceRegistered checks if this service is already in the ConnectedServices list
-func (w *DatabaseWatcher) isServiceRegistered(services []iotv1alpha1.ConnectedService) bool {
-	for _, svc := range services {
-		if svc.Name == serviceName {
-			return true
-		}
-	}
-	return false
-}
-
-// registerService registers this service in the Database's ConnectedServices status
-func (w *DatabaseWatcher) registerService(ctx context.Context, database *iotv1alpha1.Database) error {
-	// Check if already registered
-	if w.isServiceRegistered(database.Status.ConnectedServices) {
-		return nil
-	}
-
-	// Add this service to ConnectedServices
-	patch := client.MergeFrom(database.DeepCopy())
-	now := metav1.Now()
-	database.Status.ConnectedServices = append(database.Status.ConnectedServices, iotv1alpha1.ConnectedService{
-		Name:         serviceName,
-		Namespace:    w.namespace,
-		LastSeenTime: &now,
-	})
-
-	w.log.Info("Registering service with database",
-		zap.String("database", fmt.Sprintf("%s/%s", database.Namespace, database.Name)),
-		zap.String("service", serviceName))
-
-	return w.client.Status().Patch(ctx, database, patch)
 }
 
 // GetPredicate returns a predicate that only triggers on generation changes

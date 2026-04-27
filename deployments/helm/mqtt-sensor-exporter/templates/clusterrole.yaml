@@ -15,7 +15,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - mqtt.hauke.cloud
+  - iot.hauke.cloud
   resources:
   - databases
   - devices
@@ -29,15 +29,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - mqtt.hauke.cloud
-  resources:
-  - databases/finalizers
-  - devices/finalizers
-  - mqttbridges/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - mqtt.hauke.cloud
+  - iot.hauke.cloud
   resources:
   - databases/status
   - devices/status

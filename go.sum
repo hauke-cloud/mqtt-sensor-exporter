@@ -79,8 +79,8 @@ github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5T
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 h1:5ZPtiqj0JL5oKWmcsq4VMaAW5ukBEgSGXEN89zeH1Jo=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3/go.mod h1:ndYquD05frm2vACXE1nsccT4oJzjhw2arTS2cpUD1PI=
-github.com/hauke-cloud/kubernetes-iot-api v0.0.2 h1:5xQQiW3N6oBpLCbW9JrRyLsbLt1lTFyhs2KxeVUx+Q0=
-github.com/hauke-cloud/kubernetes-iot-api v0.0.2/go.mod h1:xYXn8/XJwWwjPioBEZ7k5I/xPVdA02/tLkcT+hSSfag=
+github.com/hauke-cloud/kubernetes-iot-api v0.0.4 h1:nnIwrcsOcJRiXL/xEHku6dOpcydCue6QJNkjud1bwSo=
+github.com/hauke-cloud/kubernetes-iot-api v0.0.4/go.mod h1:xYXn8/XJwWwjPioBEZ7k5I/xPVdA02/tLkcT+hSSfag=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

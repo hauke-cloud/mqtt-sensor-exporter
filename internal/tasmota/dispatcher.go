@@ -33,35 +33,25 @@ type MessageHandler interface {
 
 // Dispatcher routes Tasmota MQTT messages to appropriate handlers based on type
 type Dispatcher struct {
-	client        client.Client
-	log           *zap.Logger
-	handlers      map[string]MessageHandler
-	mqttPublisher MQTTPublisher
-	dbManager     *database.Manager
+	client    client.Client
+	log       *zap.Logger
+	handlers  map[string]MessageHandler
+	dbManager *database.Manager
 }
 
 // NewDispatcher creates a new Tasmota message dispatcher
-func NewDispatcher(c client.Client, log *zap.Logger, mqttPublisher MQTTPublisher, dbManager *database.Manager) *Dispatcher {
+// mqtt-sensor-exporter only handles sensor data (telemetry)
+func NewDispatcher(c client.Client, log *zap.Logger, dbManager *database.Manager) *Dispatcher {
 	d := &Dispatcher{
-		client:        c,
-		log:           log.With(zap.String("component", "tasmota-dispatcher")),
-		handlers:      make(map[string]MessageHandler),
-		mqttPublisher: mqttPublisher,
-		dbManager:     dbManager,
+		client:    c,
+		log:       log.With(zap.String("component", "tasmota-dispatcher")),
+		handlers:  make(map[string]MessageHandler),
+		dbManager: dbManager,
 	}
 
-	// Create discovery handler first (needed by status handler)
-	discoveryHandler := NewDiscoveryHandler(c, log.With(zap.String("handler", "discovery")), mqttPublisher)
-
-	// Register default handlers
+	// Register only telemetry handler for sensor data
 	d.RegisterHandler("telemetry", NewTelemetryHandler(c, log.With(zap.String("handler", "telemetry")), dbManager))
-	d.RegisterHandler("status", NewStatusHandler(c, log.With(zap.String("handler", "status")), discoveryHandler))
-	d.RegisterHandler("state", NewStateHandler(c, log.With(zap.String("handler", "state"))))
-	d.RegisterHandler("info", NewInfoHandler(c, log.With(zap.String("handler", "info"))))
-	d.RegisterHandler("result", NewStatusHandler(c, log.With(zap.String("handler", "result")), discoveryHandler))
-
-	// Also register discovery handler separately in case user wants to use it directly
-	d.RegisterHandler("discovery", discoveryHandler)
+	d.RegisterHandler("sensor", NewTelemetryHandler(c, log.With(zap.String("handler", "sensor")), dbManager))
 
 	return d
 }
