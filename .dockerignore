@@ -12,3 +12,7 @@
 
 # Re-include CRD YAML files needed for embedding
 !config/crd/bases/*.yaml
+
+# Re-include SQL migration files needed for embedding
+!internal/database/migrations/**/*.sql
+!internal/database/migrations/**/*.md
