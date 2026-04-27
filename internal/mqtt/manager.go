@@ -256,28 +256,8 @@ func (m *BridgeManager) subscribeToTopics(ctx context.Context, conn *BridgeConne
 		"sensor":    true,
 	}
 
-	// Prioritize SensorTopics (new field)
-	if len(conn.bridge.Spec.SensorTopics) > 0 {
-		m.log.Info("Subscribing to sensor topics",
-			zap.String("bridge", conn.bridge.Name),
-			zap.Int("topicCount", len(conn.bridge.Spec.SensorTopics)))
-
-		for _, topicSub := range conn.bridge.Spec.SensorTopics {
-			// Only subscribe to sensor data topics
-			if sensorTopicTypes[topicSub.Type] {
-				m.subscribeToTopic(ctx, conn, &topicSub)
-			} else {
-				m.log.Debug("Skipping non-sensor topic type",
-					zap.String("topic", topicSub.Topic),
-					zap.String("type", topicSub.Type))
-			}
-		}
-		return
-	}
-
-	// Backward compatibility: fallback to Topics field
 	if len(conn.bridge.Spec.Topics) > 0 {
-		m.log.Info("Subscribing to topics (legacy field)",
+		m.log.Info("Subscribing to topics",
 			zap.String("bridge", conn.bridge.Name),
 			zap.Int("topicCount", len(conn.bridge.Spec.Topics)))
 
