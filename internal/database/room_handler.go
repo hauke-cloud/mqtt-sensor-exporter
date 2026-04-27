@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+import databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 
 // RoomHandler handles room sensor measurements storage
 type RoomHandler struct {
@@ -42,21 +43,21 @@ func NewRoomHandler(db *gorm.DB, log *zap.Logger) *RoomHandler {
 // StoreMeasurement stores a room measurement from a Tasmota ZbReceived message
 // Example payload:
 //
-//	{
-//	  "Device": "0xB3CC",
-//	  "Temperature": 27.38,
-//	  "Humidity": 51.08,
-//	  "Endpoint": 1,
-//	  "LinkQuality": 54
-//	}
+//		{
+//		  "databaseiotgorm.Device": "0xB3CC",
+//		  "Temperature": 27.38,
+//		  "Humidity": 51.08,
+//		  "Endpoint": 1,
+//	 "LinkQuality": 54
+//		}
 func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, payload map[string]any) error {
 	timestamp := time.Now()
 
 	// Find or create device
-	var device Device
+	var device databaseiotgorm.Device
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
-		device = Device{
+		device = databaseiotgorm.Device{
 			DeviceID:   deviceID,
 			SensorType: "room",
 		}
@@ -64,7 +65,7 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 		if name, ok := payload["Name"].(string); ok {
 			device.DeviceName = name
 		}
-		if shortAddr, ok := payload["Device"].(string); ok {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok {
 			device.ShortAddr = shortAddr
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
@@ -85,7 +86,7 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 			device.DeviceName = name
 			updated = true
 		}
-		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
 			device.ShortAddr = shortAddr
 			updated = true
 		}
@@ -98,7 +99,7 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 		}
 	}
 
-	measurement := &RoomMeasurement{
+	measurement := &databaseiotgorm.RoomMeasurement{
 		Timestamp: timestamp,
 		DeviceID:  device.ID,
 	}
@@ -127,7 +128,7 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 	// Store link quality if present
 	if lq, ok := payload["LinkQuality"].(float64); ok {
 		quality := int(lq)
-		linkQuality := &LinkQuality{
+		linkQuality := &databaseiotgorm.LinkQuality{
 			Timestamp:   timestamp,
 			DeviceID:    device.ID,
 			LinkQuality: &quality,
@@ -149,8 +150,8 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 }
 
 // GetLatestMeasurement retrieves the latest measurement for a device
-func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*RoomMeasurement, error) {
-	var device Device
+func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*databaseiotgorm.RoomMeasurement, error) {
+	var device databaseiotgorm.Device
 	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -158,7 +159,7 @@ func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string)
 		return nil, fmt.Errorf("failed to find device: %w", err)
 	}
 
-	var measurement RoomMeasurement
+	var measurement databaseiotgorm.RoomMeasurement
 	err := h.db.WithContext(ctx).
 		Where("device_id = ?", device.ID).
 		Order("timestamp DESC").
@@ -178,16 +179,16 @@ func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string)
 }
 
 // GetMeasurementsByTimeRange retrieves measurements within a time range
-func (h *RoomHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]RoomMeasurement, error) {
-	var device Device
+func (h *RoomHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]databaseiotgorm.RoomMeasurement, error) {
+	var device databaseiotgorm.Device
 	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return []RoomMeasurement{}, nil
+			return []databaseiotgorm.RoomMeasurement{}, nil
 		}
 		return nil, fmt.Errorf("failed to find device: %w", err)
 	}
 
-	var measurements []RoomMeasurement
+	var measurements []databaseiotgorm.RoomMeasurement
 	err := h.db.WithContext(ctx).
 		Where("device_id = ? AND timestamp BETWEEN ? AND ?", device.ID, start, end).
 		Order("timestamp ASC").
@@ -211,7 +212,7 @@ func (h *RoomHandler) DeleteOldMeasurements(ctx context.Context, olderThan time.
 
 	result := h.db.WithContext(ctx).
 		Where("timestamp < ?", cutoff).
-		Delete(&RoomMeasurement{})
+		Delete(&databaseiotgorm.RoomMeasurement{})
 
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to delete old measurements: %w", result.Error)

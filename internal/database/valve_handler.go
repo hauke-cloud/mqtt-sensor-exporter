@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+import databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 
 // ValveHandler handles storage of valve sensor measurements
 type ValveHandler struct {
@@ -44,18 +45,18 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 	timestamp := time.Now()
 
 	// Find or create device
-	var device Device
+	var device databaseiotgorm.Device
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
-		device = Device{
+		device = databaseiotgorm.Device{
 			DeviceID:   deviceID,
 			SensorType: "valve",
 		}
-		
+
 		if name, ok := payload["Name"].(string); ok {
 			device.DeviceName = name
 		}
-		if shortAddr, ok := payload["Device"].(string); ok {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok {
 			device.ShortAddr = shortAddr
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
@@ -76,7 +77,7 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 			device.DeviceName = name
 			updated = true
 		}
-		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
 			device.ShortAddr = shortAddr
 			updated = true
 		}
@@ -89,7 +90,7 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 		}
 	}
 
-	measurement := ValveMeasurement{
+	measurement := databaseiotgorm.ValveMeasurement{
 		Timestamp: timestamp,
 		DeviceID:  device.ID,
 	}
@@ -131,7 +132,7 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 	// Store battery information if present
 	if bp, ok := payload["BatteryPercentage"].(float64); ok {
 		pct := int(bp)
-		battery := &Battery{
+		battery := &databaseiotgorm.Battery{
 			Timestamp:         timestamp,
 			DeviceID:          device.ID,
 			BatteryPercentage: &pct,
@@ -146,7 +147,7 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 	// Store link quality if present
 	if lq, ok := payload["LinkQuality"].(float64); ok {
 		quality := int(lq)
-		linkQuality := &LinkQuality{
+		linkQuality := &databaseiotgorm.LinkQuality{
 			Timestamp:   timestamp,
 			DeviceID:    device.ID,
 			LinkQuality: &quality,

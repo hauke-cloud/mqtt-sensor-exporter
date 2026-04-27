@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+import databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 
 // WaterLevelHandler handles storage of water level sensor measurements
 type WaterLevelHandler struct {
@@ -44,10 +45,10 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 	timestamp := time.Now()
 
 	// Find or create device
-	var device Device
+	var device databaseiotgorm.Device
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
-		device = Device{
+		device = databaseiotgorm.Device{
 			DeviceID:   deviceID,
 			SensorType: "water_level",
 		}
@@ -55,7 +56,7 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 		if name, ok := payload["Name"].(string); ok {
 			device.DeviceName = name
 		}
-		if shortAddr, ok := payload["Device"].(string); ok {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok {
 			device.ShortAddr = shortAddr
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
@@ -76,7 +77,7 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 			device.DeviceName = name
 			updated = true
 		}
-		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
 			device.ShortAddr = shortAddr
 			updated = true
 		}
@@ -89,7 +90,7 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 		}
 	}
 
-	measurement := WaterLevelMeasurement{
+	measurement := databaseiotgorm.WaterLevelMeasurement{
 		Timestamp: timestamp,
 		DeviceID:  device.ID,
 	}
@@ -111,7 +112,7 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 	// Store battery information if present
 	if bp, ok := payload["BatteryPercentage"].(float64); ok {
 		pct := int(bp)
-		battery := &Battery{
+		battery := &databaseiotgorm.Battery{
 			Timestamp:         timestamp,
 			DeviceID:          device.ID,
 			BatteryPercentage: &pct,
@@ -126,7 +127,7 @@ func (h *WaterLevelHandler) StoreMeasurement(ctx context.Context, deviceID strin
 	// Store link quality if present
 	if lq, ok := payload["LinkQuality"].(float64); ok {
 		quality := int(lq)
-		linkQuality := &LinkQuality{
+		linkQuality := &databaseiotgorm.LinkQuality{
 			Timestamp:   timestamp,
 			DeviceID:    device.ID,
 			LinkQuality: &quality,

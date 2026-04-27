@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -42,23 +43,23 @@ func NewMoistureHandler(db *gorm.DB, log *zap.Logger) *MoistureHandler {
 // StoreMeasurement stores a moisture measurement from a Tasmota ZbReceived message
 // Example payload:
 //
-//	{
-//	  "Device": "0xBF16",
-//	  "Name": "water_moisture_2",
-//	  "Temperature": 24.5,
-//	  "Humidity": 0,
-//	  "Endpoint": 1,
-//	  "LinkQuality": 0
-//	}
+//		{
+//		  "databaseiotgorm.Device": "0xBF16",
+//		  "Name": "water_moisture_2",
+//		  "Temperature": 24.5,
+//		  "Humidity": 0,
+//		  "Endpoint": 1,
+//	 "LinkQuality": 0
+//		}
 func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string, payload map[string]any) error {
 	timestamp := time.Now()
 
 	// Find or create device
-	var device Device
+	var device databaseiotgorm.Device
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
 		// Create new device
-		device = Device{
+		device = databaseiotgorm.Device{
 			DeviceID:   deviceID,
 			SensorType: "moisture",
 		}
@@ -67,7 +68,7 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 		if name, ok := payload["Name"].(string); ok {
 			device.DeviceName = name
 		}
-		if shortAddr, ok := payload["Device"].(string); ok {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok {
 			device.ShortAddr = shortAddr
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
@@ -89,7 +90,7 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 			device.DeviceName = name
 			updated = true
 		}
-		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
 			device.ShortAddr = shortAddr
 			updated = true
 		}
@@ -103,7 +104,7 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 	}
 
 	// Store measurement
-	measurement := &MoistureMeasurement{
+	measurement := &databaseiotgorm.MoistureMeasurement{
 		Timestamp: timestamp,
 		DeviceID:  device.ID,
 	}
@@ -131,7 +132,7 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 	// Store battery information if present
 	if bp, ok := payload["BatteryPercentage"].(float64); ok {
 		pct := int(bp)
-		battery := &Battery{
+		battery := &databaseiotgorm.Battery{
 			Timestamp:         timestamp,
 			DeviceID:          device.ID,
 			BatteryPercentage: &pct,
@@ -146,7 +147,7 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 	// Store link quality if present
 	if lq, ok := payload["LinkQuality"].(float64); ok {
 		quality := int(lq)
-		linkQuality := &LinkQuality{
+		linkQuality := &databaseiotgorm.LinkQuality{
 			Timestamp:   timestamp,
 			DeviceID:    device.ID,
 			LinkQuality: &quality,
@@ -168,8 +169,8 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 }
 
 // GetLatestMeasurement retrieves the latest measurement for a device
-func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*MoistureMeasurement, error) {
-	var device Device
+func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*databaseiotgorm.MoistureMeasurement, error) {
+	var device databaseiotgorm.Device
 	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -177,7 +178,7 @@ func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID str
 		return nil, fmt.Errorf("failed to find device: %w", err)
 	}
 
-	var measurement MoistureMeasurement
+	var measurement databaseiotgorm.MoistureMeasurement
 	err := h.db.WithContext(ctx).
 		Where("device_id = ?", device.ID).
 		Order("timestamp DESC").
@@ -197,16 +198,16 @@ func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID str
 }
 
 // GetMeasurementsByTimeRange retrieves measurements within a time range
-func (h *MoistureHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]MoistureMeasurement, error) {
-	var device Device
+func (h *MoistureHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]databaseiotgorm.MoistureMeasurement, error) {
+	var device databaseiotgorm.Device
 	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return []MoistureMeasurement{}, nil
+			return []databaseiotgorm.MoistureMeasurement{}, nil
 		}
 		return nil, fmt.Errorf("failed to find device: %w", err)
 	}
 
-	var measurements []MoistureMeasurement
+	var measurements []databaseiotgorm.MoistureMeasurement
 	err := h.db.WithContext(ctx).
 		Where("device_id = ? AND timestamp BETWEEN ? AND ?", device.ID, start, end).
 		Order("timestamp ASC").
@@ -230,7 +231,7 @@ func (h *MoistureHandler) DeleteOldMeasurements(ctx context.Context, olderThan t
 
 	result := h.db.WithContext(ctx).
 		Where("timestamp < ?", cutoff).
-		Delete(&MoistureMeasurement{})
+		Delete(&databaseiotgorm.MoistureMeasurement{})
 
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to delete old measurements: %w", result.Error)

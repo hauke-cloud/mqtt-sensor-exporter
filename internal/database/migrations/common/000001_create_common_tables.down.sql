@@ -1,4 +1,0 @@
--- Drop common tables
-DROP TABLE IF EXISTS link_qualities CASCADE;
-DROP TABLE IF EXISTS batteries CASCADE;
-DROP TABLE IF EXISTS devices CASCADE;

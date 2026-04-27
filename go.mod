@@ -1,11 +1,10 @@
 module github.com/hauke-cloud/mqtt-sensor-exporter
 
-go 1.25.3
+go 1.26.2
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/hauke-cloud/kubernetes-iot-api v0.0.8
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/onsi/ginkgo/v2 v2.27.2
@@ -18,6 +17,8 @@ require (
 	k8s.io/client-go v0.35.0
 	sigs.k8s.io/controller-runtime v0.23.3
 )
+
+require github.com/golang-migrate/migrate/v4 v4.19.1 // indirect
 
 require (
 	cel.dev/expr v0.24.0 // indirect
@@ -48,6 +49,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
+	github.com/hauke-cloud/database-iot-gorm v0.0.1
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

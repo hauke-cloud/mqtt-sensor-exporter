@@ -102,6 +102,8 @@ github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5T
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 h1:5ZPtiqj0JL5oKWmcsq4VMaAW5ukBEgSGXEN89zeH1Jo=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3/go.mod h1:ndYquD05frm2vACXE1nsccT4oJzjhw2arTS2cpUD1PI=
+github.com/hauke-cloud/database-iot-gorm v0.0.1 h1:kPSHi6uSxJCSMOaHNIQmaakXweQSXtkRbqNovba/NQU=
+github.com/hauke-cloud/database-iot-gorm v0.0.1/go.mod h1:CKwMwlH/oMX841m2XCqkwo25UPQ4VdS43wjDeYtjzOA=
 github.com/hauke-cloud/kubernetes-iot-api v0.0.8 h1:P1qQWg8rRoOng3tyh36YGi4DFoEZQFIQ8dqKvT17zF4=
 github.com/hauke-cloud/kubernetes-iot-api v0.0.8/go.mod h1:xYXn8/XJwWwjPioBEZ7k5I/xPVdA02/tLkcT+hSSfag=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
