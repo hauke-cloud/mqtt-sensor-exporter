@@ -60,6 +60,7 @@ func TestRoomHandler_StoreMeasurement(t *testing.T) {
 		WithArgs(
 			"test-device",    // device_id
 			"",               // device_name
+			"room",           // sensor_type
 			"0xB3CC",         // short_addr
 			"",               // ieee_addr
 			sqlmock.AnyArg(), // created_at

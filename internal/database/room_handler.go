@@ -57,7 +57,8 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
 		device = Device{
-			DeviceID: deviceID,
+			DeviceID:   deviceID,
+			SensorType: "room",
 		}
 
 		if name, ok := payload["Name"].(string); ok {

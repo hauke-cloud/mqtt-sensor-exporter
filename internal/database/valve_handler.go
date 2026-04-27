@@ -48,9 +48,10 @@ func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, pa
 	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
 	if result.Error == gorm.ErrRecordNotFound {
 		device = Device{
-			DeviceID: deviceID,
+			DeviceID:   deviceID,
+			SensorType: "valve",
 		}
-
+		
 		if name, ok := payload["Name"].(string); ok {
 			device.DeviceName = name
 		}

@@ -25,6 +25,7 @@ type Device struct {
 	ID         uint      `gorm:"primaryKey"`
 	DeviceID   string    `gorm:"uniqueIndex;size:255;not null"` // Device CR name
 	DeviceName string    `gorm:"size:255"`                      // Friendly name from Tasmota
+	SensorType string    `gorm:"size:50"`                       // Sensor type (moisture, valve, water_level, room)
 	ShortAddr  string    `gorm:"index;size:50"`                 // Zigbee short address (e.g., "0xBF16")
 	IEEEAddr   string    `gorm:"index;size:100"`                // IEEE address if available
 	CreatedAt  time.Time `gorm:"not null"`

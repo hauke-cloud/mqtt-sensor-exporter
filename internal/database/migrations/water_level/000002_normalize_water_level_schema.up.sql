@@ -40,15 +40,15 @@ CREATE INDEX IF NOT EXISTS idx_link_qualities_device_id ON link_qualities(device
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'water_level_measurements' 
-        AND column_name = 'device_id' 
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'water_level_measurements'
+        AND column_name = 'device_id'
         AND data_type = 'character varying'
     ) THEN
         -- Extract unique devices
         INSERT INTO devices (device_id, device_name, short_addr, ieee_addr, created_at, updated_at)
-        SELECT DISTINCT 
+        SELECT DISTINCT
             device_id,
             device_name,
             short_addr,
@@ -63,10 +63,10 @@ BEGIN
             short_addr = COALESCE(EXCLUDED.short_addr, devices.short_addr),
             ieee_addr = COALESCE(EXCLUDED.ieee_addr, devices.ieee_addr),
             updated_at = GREATEST(devices.updated_at, EXCLUDED.updated_at);
-        
+
         -- Extract battery data
         INSERT INTO batteries (timestamp, device_id, battery_percentage)
-        SELECT 
+        SELECT
             w.timestamp,
             d.id,
             w.battery_percentage
@@ -74,10 +74,10 @@ BEGIN
         INNER JOIN devices d ON w.device_id = d.device_id
         WHERE w.battery_percentage IS NOT NULL
         ON CONFLICT DO NOTHING;
-        
+
         -- Extract link quality data
         INSERT INTO link_qualities (timestamp, device_id, link_quality)
-        SELECT 
+        SELECT
             w.timestamp,
             d.id,
             w.link_quality
@@ -85,7 +85,7 @@ BEGIN
         INNER JOIN devices d ON w.device_id = d.device_id
         WHERE w.link_quality IS NOT NULL
         ON CONFLICT DO NOTHING;
-        
+
         -- Create new table
         CREATE TABLE water_level_measurements_new (
             id BIGSERIAL PRIMARY KEY,
@@ -94,13 +94,13 @@ BEGIN
             level INT,
             endpoint INT
         );
-        
+
         CREATE INDEX idx_water_level_measurements_new_timestamp ON water_level_measurements_new(timestamp DESC);
         CREATE INDEX idx_water_level_measurements_new_device_id ON water_level_measurements_new(device_id, timestamp DESC);
-        
+
         -- Migrate data
         INSERT INTO water_level_measurements_new (id, timestamp, device_id, level, endpoint)
-        SELECT 
+        SELECT
             w.id,
             w.timestamp,
             d.id as device_id,
@@ -108,12 +108,13 @@ BEGIN
             w.endpoint
         FROM water_level_measurements w
         INNER JOIN devices d ON w.device_id = d.device_id;
-        
+
         DROP TABLE water_level_measurements CASCADE;
         ALTER TABLE water_level_measurements_new RENAME TO water_level_measurements;
         ALTER INDEX idx_water_level_measurements_new_timestamp RENAME TO idx_water_level_measurements_timestamp;
         ALTER INDEX idx_water_level_measurements_new_device_id RENAME TO idx_water_level_measurements_device_id;
-        
+        ALTER SEQUENCE water_level_measurements_new_id_seq RENAME TO water_level_measurements_id_seq;
+
         SELECT setval('water_level_measurements_id_seq', (SELECT MAX(id) FROM water_level_measurements));
     END IF;
 END $$;

@@ -59,7 +59,8 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 	if result.Error == gorm.ErrRecordNotFound {
 		// Create new device
 		device = Device{
-			DeviceID: deviceID,
+			DeviceID:   deviceID,
+			SensorType: "moisture",
 		}
 
 		// Extract device info from payload
