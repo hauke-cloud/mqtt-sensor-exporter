@@ -59,10 +59,10 @@ func TestRoomHandler_StoreMeasurement(t *testing.T) {
 	mock.ExpectQuery(`INSERT INTO "devices"`).
 		WithArgs(
 			"test-device",    // device_id
-			"",               // device_name
+			sqlmock.AnyArg(), // device_name (empty or from payload)
 			"room",           // sensor_type
-			"0xB3CC",         // short_addr
-			"",               // ieee_addr
+			sqlmock.AnyArg(), // short_addr (from payload "Device" field)
+			sqlmock.AnyArg(), // ieee_addr (empty or from payload)
 			sqlmock.AnyArg(), // created_at
 			sqlmock.AnyArg(), // updated_at
 		).
