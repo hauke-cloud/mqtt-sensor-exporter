@@ -32,19 +32,11 @@ type MoistureHandler struct {
 }
 
 // NewMoistureHandler creates a new moisture handler
-func NewMoistureHandler(db *gorm.DB, log *zap.Logger) (*MoistureHandler, error) {
-	handler := &MoistureHandler{
+func NewMoistureHandler(db *gorm.DB, log *zap.Logger) *MoistureHandler {
+	return &MoistureHandler{
 		db:  db,
 		log: log,
 	}
-
-	// Auto-migrate the schema
-	if err := db.AutoMigrate(&MoistureMeasurement{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate moisture_measurements table: %w", err)
-	}
-
-	log.Info("Moisture handler initialized, table auto-migrated")
-	return handler, nil
 }
 
 // StoreMeasurement stores a moisture measurement from a Tasmota ZbReceived message
@@ -59,66 +51,115 @@ func NewMoistureHandler(db *gorm.DB, log *zap.Logger) (*MoistureHandler, error) 
 //	  "LinkQuality": 0
 //	}
 func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string, payload map[string]any) error {
+	timestamp := time.Now()
+
+	// Find or create device
+	var device Device
+	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
+	if result.Error == gorm.ErrRecordNotFound {
+		// Create new device
+		device = Device{
+			DeviceID: deviceID,
+		}
+
+		// Extract device info from payload
+		if name, ok := payload["Name"].(string); ok {
+			device.DeviceName = name
+		}
+		if shortAddr, ok := payload["Device"].(string); ok {
+			device.ShortAddr = shortAddr
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
+			device.IEEEAddr = ieeeAddr
+		}
+
+		if err := h.db.WithContext(ctx).Create(&device).Error; err != nil {
+			h.log.Error("Failed to create device",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+			return fmt.Errorf("failed to create device: %w", err)
+		}
+	} else if result.Error != nil {
+		return fmt.Errorf("failed to query device: %w", result.Error)
+	} else {
+		// Update device info if provided in payload
+		updated := false
+		if name, ok := payload["Name"].(string); ok && name != "" && device.DeviceName != name {
+			device.DeviceName = name
+			updated = true
+		}
+		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+			device.ShortAddr = shortAddr
+			updated = true
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok && ieeeAddr != "" && device.IEEEAddr != ieeeAddr {
+			device.IEEEAddr = ieeeAddr
+			updated = true
+		}
+		if updated {
+			h.db.WithContext(ctx).Save(&device)
+		}
+	}
+
+	// Store measurement
 	measurement := &MoistureMeasurement{
-		Timestamp: time.Now(),
-		DeviceID:  deviceID,
+		Timestamp: timestamp,
+		DeviceID:  device.ID,
 	}
 
-	// Extract fields from payload
-	if name, ok := payload["Name"].(string); ok {
-		measurement.DeviceName = name
-	}
-
-	if device, ok := payload["Device"].(string); ok {
-		measurement.ShortAddr = device
-	}
-
-	// Temperature
 	if temp, ok := payload["Temperature"].(float64); ok {
 		measurement.Temperature = &temp
 	}
 
-	// Humidity (soil moisture)
 	if humidity, ok := payload["Humidity"].(float64); ok {
 		measurement.Humidity = &humidity
 	}
 
-	// Battery voltage
-	if battVolt, ok := payload["BatteryVoltage"].(float64); ok {
-		measurement.BatteryVoltage = &battVolt
-	}
-
-	// Battery percentage
-	if battPct, ok := payload["BatteryPercentage"].(float64); ok {
-		pct := int(battPct)
-		measurement.BatteryPercentage = &pct
-	}
-
-	// Link quality
-	if lq, ok := payload["LinkQuality"].(float64); ok {
-		quality := int(lq)
-		measurement.LinkQuality = &quality
-	}
-
-	// Endpoint
 	if ep, ok := payload["Endpoint"].(float64); ok {
 		endpoint := int(ep)
 		measurement.Endpoint = &endpoint
 	}
 
-	// Store in database
 	if err := h.db.WithContext(ctx).Create(measurement).Error; err != nil {
 		h.log.Error("Failed to store moisture measurement",
 			zap.String("deviceID", deviceID),
-			zap.String("shortAddr", measurement.ShortAddr),
 			zap.Error(err))
 		return fmt.Errorf("failed to store moisture measurement: %w", err)
 	}
 
+	// Store battery information if present
+	if bp, ok := payload["BatteryPercentage"].(float64); ok {
+		pct := int(bp)
+		battery := &Battery{
+			Timestamp:         timestamp,
+			DeviceID:          device.ID,
+			BatteryPercentage: &pct,
+		}
+		if err := h.db.WithContext(ctx).Create(battery).Error; err != nil {
+			h.log.Warn("Failed to store battery measurement",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+		}
+	}
+
+	// Store link quality if present
+	if lq, ok := payload["LinkQuality"].(float64); ok {
+		quality := int(lq)
+		linkQuality := &LinkQuality{
+			Timestamp:   timestamp,
+			DeviceID:    device.ID,
+			LinkQuality: &quality,
+		}
+		if err := h.db.WithContext(ctx).Create(linkQuality).Error; err != nil {
+			h.log.Warn("Failed to store link quality",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+		}
+	}
+
 	h.log.Debug("Stored moisture measurement",
 		zap.String("deviceID", deviceID),
-		zap.String("deviceName", measurement.DeviceName),
-		zap.String("shortAddr", measurement.ShortAddr),
+		zap.String("deviceName", device.DeviceName),
 		zap.Float64p("temperature", measurement.Temperature),
 		zap.Float64p("humidity", measurement.Humidity))
 
@@ -127,9 +168,18 @@ func (h *MoistureHandler) StoreMeasurement(ctx context.Context, deviceID string,
 
 // GetLatestMeasurement retrieves the latest measurement for a device
 func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*MoistureMeasurement, error) {
+	var device Device
+	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find device: %w", err)
+	}
+
 	var measurement MoistureMeasurement
 	err := h.db.WithContext(ctx).
-		Where("device_id = ?", deviceID).
+		Preload("Device").
+		Where("device_id = ?", device.ID).
 		Order("timestamp DESC").
 		First(&measurement).Error
 
@@ -145,9 +195,18 @@ func (h *MoistureHandler) GetLatestMeasurement(ctx context.Context, deviceID str
 
 // GetMeasurementsByTimeRange retrieves measurements within a time range
 func (h *MoistureHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]MoistureMeasurement, error) {
+	var device Device
+	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return []MoistureMeasurement{}, nil
+		}
+		return nil, fmt.Errorf("failed to find device: %w", err)
+	}
+
 	var measurements []MoistureMeasurement
 	err := h.db.WithContext(ctx).
-		Where("device_id = ? AND timestamp BETWEEN ? AND ?", deviceID, start, end).
+		Preload("Device").
+		Where("device_id = ? AND timestamp BETWEEN ? AND ?", device.ID, start, end).
 		Order("timestamp ASC").
 		Find(&measurements).Error
 

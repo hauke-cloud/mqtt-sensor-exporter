@@ -145,43 +145,6 @@ func evaluateAlertCondition(measurementValue float64, condition *iotv1alpha1.Ale
 	}
 }
 
-// checkAlertConditions evaluates alert conditions using the device's measurements map
-// Returns true if any alert condition is met
-// This function uses the corrected values from status.measurements for evaluation
-func checkAlertConditions(device *iotv1alpha1.Device) bool {
-	if device == nil || device.Spec.AlertCondition == nil {
-		return false
-	}
-
-	// Return false if measurements map is not populated yet
-	if device.Status.Measurements == nil {
-		return false
-	}
-
-	condition := device.Spec.AlertCondition
-
-	// Get the measurement from the status.measurements map
-	mv, exists := device.Status.Measurements[condition.Measurement]
-	if !exists {
-		return false
-	}
-
-	// Use corrected value if available, otherwise use raw value
-	valueStr := mv.Value
-	if mv.CorrectedValue != nil {
-		valueStr = *mv.CorrectedValue
-	}
-
-	// Parse the measurement value to float64
-	measurementValue, err := strconv.ParseFloat(valueStr, 64)
-	if err != nil {
-		// If parsing fails, cannot evaluate (e.g., boolean values)
-		return false
-	}
-
-	return evaluateAlertCondition(measurementValue, condition)
-}
-
 // formatFloat formats a float64 value as a string
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)

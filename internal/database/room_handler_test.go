@@ -49,19 +49,45 @@ func TestRoomHandler_StoreMeasurement(t *testing.T) {
 	log := zap.NewNop()
 	handler := NewRoomHandler(gormDB, log)
 
-	// Mock expectations for INSERT
+	// Mock expectations for finding/creating device
+	mock.ExpectQuery(`SELECT \* FROM "devices" WHERE device_id`).
+		WithArgs("test-device", 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	// Mock device creation
 	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO "room_measurements"`).
+	mock.ExpectQuery(`INSERT INTO "devices"`).
 		WithArgs(
-			sqlmock.AnyArg(), // timestamp
 			"test-device",    // device_id
 			"",               // device_name
 			"0xB3CC",         // short_addr
 			"",               // ieee_addr
+			sqlmock.AnyArg(), // created_at
+			sqlmock.AnyArg(), // updated_at
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
+
+	// Mock measurement insertion
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "room_measurements"`).
+		WithArgs(
+			sqlmock.AnyArg(), // timestamp
+			1,                // device_id (foreign key)
 			27.38,            // temperature
 			51.08,            // humidity
-			54,               // link_quality
 			1,                // endpoint
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
+
+	// Mock link quality insertion
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "link_qualities"`).
+		WithArgs(
+			sqlmock.AnyArg(), // timestamp
+			1,                // device_id
+			54,               // link_quality
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectCommit()
@@ -109,24 +135,43 @@ func TestRoomHandler_GetLatestMeasurement(t *testing.T) {
 	log := zap.NewNop()
 	handler := NewRoomHandler(gormDB, log)
 
-	// Mock expectations for SELECT
+	// Mock expectations for SELECT device
+	deviceRows := sqlmock.NewRows([]string{
+		"id", "device_id", "device_name", "short_addr", "ieee_addr", "created_at", "updated_at",
+	}).AddRow(
+		1, "test-device", "room-sensor", "0xB3CC", "", time.Now(), time.Now(),
+	)
+
+	mock.ExpectQuery(`SELECT \* FROM "devices" WHERE device_id`).
+		WithArgs("test-device", 1).
+		WillReturnRows(deviceRows)
+
+	// Mock expectations for SELECT measurement with preload
 	now := time.Now()
 	temp := 27.38
 	humidity := 51.08
-	linkQuality := 54
 	endpoint := 1
 
-	rows := sqlmock.NewRows([]string{
-		"id", "timestamp", "device_id", "device_name", "short_addr", "ieee_addr",
-		"temperature", "humidity", "link_quality", "endpoint",
+	measurementRows := sqlmock.NewRows([]string{
+		"id", "timestamp", "device_id", "temperature", "humidity", "endpoint",
 	}).AddRow(
-		1, now, "test-device", "room-sensor", "0xB3CC", "",
-		temp, humidity, linkQuality, endpoint,
+		1, now, 1, temp, humidity, endpoint,
 	)
 
-	mock.ExpectQuery(`SELECT \* FROM "room_measurements" WHERE device_id = \$1 ORDER BY timestamp DESC`).
-		WithArgs("test-device", 1).
-		WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT \* FROM "room_measurements" WHERE device_id`).
+		WithArgs(1, 1).
+		WillReturnRows(measurementRows)
+
+	// Mock preload of Device - GORM preloads using device_id field, not id
+	devicePreloadRows := sqlmock.NewRows([]string{
+		"id", "device_id", "device_name", "short_addr", "ieee_addr", "created_at", "updated_at",
+	}).AddRow(
+		1, "test-device", "room-sensor", "0xB3CC", "", time.Now(), time.Now(),
+	)
+
+	mock.ExpectQuery(`SELECT \* FROM "devices" WHERE "devices"\."device_id"`).
+		WithArgs(1).
+		WillReturnRows(devicePreloadRows)
 
 	ctx := context.Background()
 	measurement, err := handler.GetLatestMeasurement(ctx, "test-device")
@@ -138,8 +183,8 @@ func TestRoomHandler_GetLatestMeasurement(t *testing.T) {
 		t.Fatal("Expected measurement, got nil")
 	}
 
-	if measurement.DeviceID != "test-device" {
-		t.Errorf("Expected DeviceID 'test-device', got '%s'", measurement.DeviceID)
+	if measurement.Device.DeviceID != "test-device" {
+		t.Errorf("Expected DeviceID 'test-device', got '%s'", measurement.Device.DeviceID)
 	}
 
 	if measurement.Temperature == nil || *measurement.Temperature != 27.38 {

@@ -148,6 +148,17 @@ func (m *Manager) Connect(ctx context.Context, database *iotv1alpha1.Database) e
 		sqlDB.SetMaxIdleConns(int(*database.Spec.MinConnections))
 	}
 
+	// Run database migrations for the supported sensor types
+	m.log.Info("Running database migrations",
+		zap.String("database", key),
+		zap.Strings("sensorTypes", database.Spec.SupportedSensorTypes))
+	if err := RunMigrationsForSensorTypes(db, database.Spec.SupportedSensorTypes, m.log.With(zap.String("database", key))); err != nil {
+		m.log.Error("Failed to run database migrations",
+			zap.String("database", key),
+			zap.Error(err))
+		return fmt.Errorf("failed to run database migrations: %w", err)
+	}
+
 	// Initialize connection
 	conn := &Connection{
 		database: database,
@@ -158,34 +169,22 @@ func (m *Manager) Connect(ctx context.Context, database *iotv1alpha1.Database) e
 	for _, sensorType := range database.Spec.SupportedSensorTypes {
 		switch sensorType {
 		case "moisture":
-			handler, err := NewMoistureHandler(db, m.log.With(zap.String("handler", "moisture")))
-			if err != nil {
-				return fmt.Errorf("failed to connect to database: %w", err)
-			}
+			handler := NewMoistureHandler(db, m.log.With(zap.String("handler", "moisture")))
 			conn.moistureHandler = handler
 			m.log.Info("Moisture handler initialized", zap.String("database", key))
 
 		case "water_level":
 			handler := NewWaterLevelHandler(db, m.log.With(zap.String("handler", "water_level")))
-			if err := handler.Initialize(ctx); err != nil {
-				return fmt.Errorf("failed to initialize water level handler: %w", err)
-			}
 			conn.waterLevelHandler = handler
 			m.log.Info("Water level handler initialized", zap.String("database", key))
 
 		case "valve":
 			handler := NewValveHandler(db, m.log.With(zap.String("handler", "valve")))
-			if err := handler.Initialize(ctx); err != nil {
-				return fmt.Errorf("failed to initialize valve handler: %w", err)
-			}
 			conn.valveHandler = handler
 			m.log.Info("Valve handler initialized", zap.String("database", key))
 
 		case "room":
 			handler := NewRoomHandler(db, m.log.With(zap.String("handler", "room")))
-			if err := handler.Initialize(ctx); err != nil {
-				return fmt.Errorf("failed to initialize room handler: %w", err)
-			}
 			conn.roomHandler = handler
 			m.log.Info("Room handler initialized", zap.String("database", key))
 

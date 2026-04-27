@@ -39,17 +39,6 @@ func NewRoomHandler(db *gorm.DB, log *zap.Logger) *RoomHandler {
 	}
 }
 
-// Initialize sets up the room handler and auto-migrates the schema
-func (h *RoomHandler) Initialize(ctx context.Context) error {
-	// Auto-migrate the schema
-	if err := h.db.AutoMigrate(&RoomMeasurement{}); err != nil {
-		return fmt.Errorf("failed to migrate room_measurements table: %w", err)
-	}
-
-	h.log.Info("Room handler initialized, table auto-migrated")
-	return nil
-}
-
 // StoreMeasurement stores a room measurement from a Tasmota ZbReceived message
 // Example payload:
 //
@@ -61,37 +50,66 @@ func (h *RoomHandler) Initialize(ctx context.Context) error {
 //	  "LinkQuality": 54
 //	}
 func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, payload map[string]any) error {
+	timestamp := time.Now()
+
+	// Find or create device
+	var device Device
+	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
+	if result.Error == gorm.ErrRecordNotFound {
+		device = Device{
+			DeviceID: deviceID,
+		}
+
+		if name, ok := payload["Name"].(string); ok {
+			device.DeviceName = name
+		}
+		if shortAddr, ok := payload["Device"].(string); ok {
+			device.ShortAddr = shortAddr
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
+			device.IEEEAddr = ieeeAddr
+		}
+
+		if err := h.db.WithContext(ctx).Create(&device).Error; err != nil {
+			h.log.Error("Failed to create device",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+			return fmt.Errorf("failed to create device: %w", err)
+		}
+	} else if result.Error != nil {
+		return fmt.Errorf("failed to query device: %w", result.Error)
+	} else {
+		updated := false
+		if name, ok := payload["Name"].(string); ok && name != "" && device.DeviceName != name {
+			device.DeviceName = name
+			updated = true
+		}
+		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+			device.ShortAddr = shortAddr
+			updated = true
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok && ieeeAddr != "" && device.IEEEAddr != ieeeAddr {
+			device.IEEEAddr = ieeeAddr
+			updated = true
+		}
+		if updated {
+			h.db.WithContext(ctx).Save(&device)
+		}
+	}
+
 	measurement := &RoomMeasurement{
-		Timestamp: time.Now(),
-		DeviceID:  deviceID,
+		Timestamp: timestamp,
+		DeviceID:  device.ID,
 	}
 
-	// Extract fields from payload
-	if name, ok := payload["Name"].(string); ok {
-		measurement.DeviceName = name
-	}
-
-	if device, ok := payload["Device"].(string); ok {
-		measurement.ShortAddr = device
-	}
-
-	// Temperature
 	if temp, ok := payload["Temperature"].(float64); ok {
 		measurement.Temperature = &temp
 	}
 
-	// Humidity
 	if humidity, ok := payload["Humidity"].(float64); ok {
 		measurement.Humidity = &humidity
 	}
 
-	// Link quality
-	if lq, ok := payload["LinkQuality"].(float64); ok {
-		quality := int(lq)
-		measurement.LinkQuality = &quality
-	}
-
-	// Endpoint
 	if ep, ok := payload["Endpoint"].(float64); ok {
 		endpoint := int(ep)
 		measurement.Endpoint = &endpoint
@@ -101,15 +119,28 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 	if err := h.db.WithContext(ctx).Create(measurement).Error; err != nil {
 		h.log.Error("Failed to store room measurement",
 			zap.String("deviceID", deviceID),
-			zap.String("shortAddr", measurement.ShortAddr),
 			zap.Error(err))
 		return fmt.Errorf("failed to store room measurement: %w", err)
 	}
 
+	// Store link quality if present
+	if lq, ok := payload["LinkQuality"].(float64); ok {
+		quality := int(lq)
+		linkQuality := &LinkQuality{
+			Timestamp:   timestamp,
+			DeviceID:    device.ID,
+			LinkQuality: &quality,
+		}
+		if err := h.db.WithContext(ctx).Create(linkQuality).Error; err != nil {
+			h.log.Warn("Failed to store link quality",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+		}
+	}
+
 	h.log.Debug("Stored room measurement",
 		zap.String("deviceID", deviceID),
-		zap.String("deviceName", measurement.DeviceName),
-		zap.String("shortAddr", measurement.ShortAddr),
+		zap.String("deviceName", device.DeviceName),
 		zap.Float64p("temperature", measurement.Temperature),
 		zap.Float64p("humidity", measurement.Humidity))
 
@@ -118,9 +149,18 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 
 // GetLatestMeasurement retrieves the latest measurement for a device
 func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string) (*RoomMeasurement, error) {
+	var device Device
+	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find device: %w", err)
+	}
+
 	var measurement RoomMeasurement
 	err := h.db.WithContext(ctx).
-		Where("device_id = ?", deviceID).
+		Preload("Device").
+		Where("device_id = ?", device.ID).
 		Order("timestamp DESC").
 		First(&measurement).Error
 
@@ -136,9 +176,18 @@ func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string)
 
 // GetMeasurementsByTimeRange retrieves measurements within a time range
 func (h *RoomHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID string, start, end time.Time) ([]RoomMeasurement, error) {
+	var device Device
+	if err := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return []RoomMeasurement{}, nil
+		}
+		return nil, fmt.Errorf("failed to find device: %w", err)
+	}
+
 	var measurements []RoomMeasurement
 	err := h.db.WithContext(ctx).
-		Where("device_id = ? AND timestamp BETWEEN ? AND ?", deviceID, start, end).
+		Preload("Device").
+		Where("device_id = ? AND timestamp BETWEEN ? AND ?", device.ID, start, end).
 		Order("timestamp ASC").
 		Find(&measurements).Error
 

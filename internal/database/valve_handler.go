@@ -39,92 +39,122 @@ func NewValveHandler(db *gorm.DB, log *zap.Logger) *ValveHandler {
 	}
 }
 
-// Initialize creates the valve_measurements table if it doesn't exist
-func (h *ValveHandler) Initialize(ctx context.Context) error {
-	h.log.Info("Initializing valve_measurements table")
-
-	// Auto-migrate the table schema
-	if err := h.db.WithContext(ctx).AutoMigrate(&ValveMeasurement{}); err != nil {
-		return fmt.Errorf("failed to auto-migrate valve_measurements table: %w", err)
-	}
-
-	h.log.Info("Valve measurements table initialized successfully")
-	return nil
-}
-
 // StoreMeasurement stores a valve measurement to the database
 func (h *ValveHandler) StoreMeasurement(ctx context.Context, deviceID string, payload map[string]any) error {
+	timestamp := time.Now()
+
+	// Find or create device
+	var device Device
+	result := h.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&device)
+	if result.Error == gorm.ErrRecordNotFound {
+		device = Device{
+			DeviceID: deviceID,
+		}
+
+		if name, ok := payload["Name"].(string); ok {
+			device.DeviceName = name
+		}
+		if shortAddr, ok := payload["Device"].(string); ok {
+			device.ShortAddr = shortAddr
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
+			device.IEEEAddr = ieeeAddr
+		}
+
+		if err := h.db.WithContext(ctx).Create(&device).Error; err != nil {
+			h.log.Error("Failed to create device",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+			return fmt.Errorf("failed to create device: %w", err)
+		}
+	} else if result.Error != nil {
+		return fmt.Errorf("failed to query device: %w", result.Error)
+	} else {
+		updated := false
+		if name, ok := payload["Name"].(string); ok && name != "" && device.DeviceName != name {
+			device.DeviceName = name
+			updated = true
+		}
+		if shortAddr, ok := payload["Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
+			device.ShortAddr = shortAddr
+			updated = true
+		}
+		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok && ieeeAddr != "" && device.IEEEAddr != ieeeAddr {
+			device.IEEEAddr = ieeeAddr
+			updated = true
+		}
+		if updated {
+			h.db.WithContext(ctx).Save(&device)
+		}
+	}
+
 	measurement := ValveMeasurement{
-		Timestamp: time.Now(),
-		DeviceID:  deviceID,
+		Timestamp: timestamp,
+		DeviceID:  device.ID,
 	}
 
-	// Extract device name if present
-	if name, ok := payload["Name"].(string); ok {
-		measurement.DeviceName = name
-	}
-
-	// Extract device short address if present
-	if device, ok := payload["Device"].(string); ok {
-		measurement.ShortAddr = device
-	}
-
-	// Extract power state
 	if power, ok := payload["Power"].(float64); ok {
 		p := int(power)
 		measurement.Power = &p
 	}
 
-	// Extract last valve open duration
 	if duration, ok := payload["LastValveOpenDuration"].(float64); ok {
 		d := int(duration)
 		measurement.LastValveOpenDuration = &d
 	}
 
-	// Extract irrigation start time
 	if startTime, ok := payload["IrrigationStartTime"].(float64); ok {
 		st := int64(startTime)
 		measurement.IrrigationStartTime = &st
 	}
 
-	// Extract irrigation end time
 	if endTime, ok := payload["IrrigationEndTime"].(float64); ok {
 		et := int64(endTime)
 		measurement.IrrigationEndTime = &et
 	}
 
-	// Extract daily irrigation volume
 	if volume, ok := payload["DailyIrrigationVolume"].(float64); ok {
 		v := int(volume)
 		measurement.DailyIrrigationVolume = &v
 	}
 
-	// Extract battery percentage if present
-	if batteryPercentage, ok := payload["BatteryPercentage"].(float64); ok {
-		bp := int(batteryPercentage)
-		measurement.BatteryPercentage = &bp
-	}
-
-	// Extract battery voltage if present
-	if voltage, ok := payload["Voltage"].(float64); ok {
-		measurement.BatteryVoltage = &voltage
-	}
-
-	// Extract link quality if present
-	if linkQuality, ok := payload["LinkQuality"].(float64); ok {
-		lq := int(linkQuality)
-		measurement.LinkQuality = &lq
-	}
-
-	// Extract endpoint if present
 	if endpoint, ok := payload["Endpoint"].(float64); ok {
 		ep := int(endpoint)
 		measurement.Endpoint = &ep
 	}
 
-	// Store to database
 	if err := h.db.WithContext(ctx).Create(&measurement).Error; err != nil {
 		return fmt.Errorf("failed to store valve measurement: %w", err)
+	}
+
+	// Store battery information if present
+	if bp, ok := payload["BatteryPercentage"].(float64); ok {
+		pct := int(bp)
+		battery := &Battery{
+			Timestamp:         timestamp,
+			DeviceID:          device.ID,
+			BatteryPercentage: &pct,
+		}
+		if err := h.db.WithContext(ctx).Create(battery).Error; err != nil {
+			h.log.Warn("Failed to store battery measurement",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+		}
+	}
+
+	// Store link quality if present
+	if lq, ok := payload["LinkQuality"].(float64); ok {
+		quality := int(lq)
+		linkQuality := &LinkQuality{
+			Timestamp:   timestamp,
+			DeviceID:    device.ID,
+			LinkQuality: &quality,
+		}
+		if err := h.db.WithContext(ctx).Create(linkQuality).Error; err != nil {
+			h.log.Warn("Failed to store link quality",
+				zap.String("deviceID", deviceID),
+				zap.Error(err))
+		}
 	}
 
 	h.log.Debug("Stored valve measurement",

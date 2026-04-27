@@ -20,21 +20,60 @@ import (
 	"time"
 )
 
+// Device represents a sensor device in the database
+type Device struct {
+	ID         uint      `gorm:"primaryKey"`
+	DeviceID   string    `gorm:"uniqueIndex;size:255;not null"` // Device CR name
+	DeviceName string    `gorm:"size:255"`                      // Friendly name from Tasmota
+	ShortAddr  string    `gorm:"index;size:50"`                 // Zigbee short address (e.g., "0xBF16")
+	IEEEAddr   string    `gorm:"index;size:100"`                // IEEE address if available
+	CreatedAt  time.Time `gorm:"not null"`
+	UpdatedAt  time.Time `gorm:"not null"`
+}
+
+// TableName overrides the default table name
+func (Device) TableName() string {
+	return "devices"
+}
+
+// Battery represents battery status for a device at a specific time
+type Battery struct {
+	ID                uint      `gorm:"primaryKey"`
+	Timestamp         time.Time `gorm:"index;not null"`
+	DeviceID          uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device            Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	BatteryPercentage *int      // Battery percentage (0-100)
+}
+
+// TableName overrides the default table name
+func (Battery) TableName() string {
+	return "batteries"
+}
+
+// LinkQuality represents link quality for a device at a specific time
+type LinkQuality struct {
+	ID          uint      `gorm:"primaryKey"`
+	Timestamp   time.Time `gorm:"index;not null"`
+	DeviceID    uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device      Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	LinkQuality *int      // Link quality (0-255)
+}
+
+// TableName overrides the default table name
+func (LinkQuality) TableName() string {
+	return "link_qualities"
+}
+
 // MoistureMeasurement represents a moisture sensor measurement in the database
 // This model is used by GORM to auto-create/manage the moisture_measurements table
 type MoistureMeasurement struct {
-	ID                uint      `gorm:"primaryKey"`
-	Timestamp         time.Time `gorm:"index;not null"`
-	DeviceID          string    `gorm:"index;size:255;not null"` // Device CR name
-	DeviceName        string    `gorm:"size:255"`                // Friendly name from Tasmota
-	ShortAddr         string    `gorm:"index;size:50"`           // Zigbee short address (e.g., "0xBF16")
-	IEEEAddr          string    `gorm:"index;size:100"`          // IEEE address if available
-	Temperature       *float64  `gorm:"type:decimal(5,2)"`       // Temperature in Celsius
-	Humidity          *float64  `gorm:"type:decimal(5,2)"`       // Soil humidity/moisture percentage
-	BatteryVoltage    *float64  `gorm:"type:decimal(4,2)"`       // Battery voltage
-	BatteryPercentage *int      // Battery percentage (0-100)
-	LinkQuality       *int      // Link quality (0-255)
-	Endpoint          *int      // Zigbee endpoint
+	ID          uint      `gorm:"primaryKey"`
+	Timestamp   time.Time `gorm:"index;not null"`
+	DeviceID    uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device      Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Temperature *float64  `gorm:"type:decimal(5,2)"` // Temperature in Celsius
+	Humidity    *float64  `gorm:"type:decimal(5,2)"` // Soil humidity/moisture percentage
+	Endpoint    *int      // Zigbee endpoint
 }
 
 // TableName overrides the default table name
@@ -47,18 +86,13 @@ func (MoistureMeasurement) TableName() string {
 type ValveMeasurement struct {
 	ID                    uint      `gorm:"primaryKey"`
 	Timestamp             time.Time `gorm:"index;not null"`
-	DeviceID              string    `gorm:"index;size:255;not null"` // Device CR name
-	DeviceName            string    `gorm:"size:255"`                // Friendly name from Tasmota
-	ShortAddr             string    `gorm:"index;size:50"`           // Zigbee short address
-	IEEEAddr              string    `gorm:"index;size:100"`          // IEEE address if available
+	DeviceID              uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device                Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Power                 *int      // Power state (0=off, 1=on)
 	LastValveOpenDuration *int      // Duration valve was open (seconds)
 	IrrigationStartTime   *int64    // Unix timestamp when irrigation started
 	IrrigationEndTime     *int64    // Unix timestamp when irrigation ended
 	DailyIrrigationVolume *int      // Daily irrigation volume
-	BatteryVoltage        *float64  `gorm:"type:decimal(4,2)"` // Battery voltage
-	BatteryPercentage     *int      // Battery percentage (0-100)
-	LinkQuality           *int      // Link quality (0-255)
 	Endpoint              *int      // Zigbee endpoint
 }
 
@@ -70,16 +104,12 @@ func (ValveMeasurement) TableName() string {
 // WaterLevelMeasurement represents a water level sensor measurement in the database
 // This model is used by GORM to auto-create/manage the water_level_measurements table
 type WaterLevelMeasurement struct {
-	ID                uint      `gorm:"primaryKey"`
-	Timestamp         time.Time `gorm:"index;not null"`
-	DeviceID          string    `gorm:"index;size:255;not null"` // Device CR name
-	DeviceName        string    `gorm:"size:255"`                // Friendly name from Tasmota
-	ShortAddr         string    `gorm:"index;size:50"`           // Zigbee short address
-	IEEEAddr          string    `gorm:"index;size:100"`          // IEEE address if available
-	Level             *int      // Water level value (e.g., 285)
-	BatteryPercentage *int      // Battery percentage (0-100)
-	LinkQuality       *int      // Link quality (0-255)
-	Endpoint          *int      // Zigbee endpoint
+	ID        uint      `gorm:"primaryKey"`
+	Timestamp time.Time `gorm:"index;not null"`
+	DeviceID  uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device    Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Level     *int      // Water level value (e.g., 285)
+	Endpoint  *int      // Zigbee endpoint
 }
 
 // TableName overrides the default table name
@@ -92,13 +122,10 @@ func (WaterLevelMeasurement) TableName() string {
 type RoomMeasurement struct {
 	ID          uint      `gorm:"primaryKey"`
 	Timestamp   time.Time `gorm:"index;not null"`
-	DeviceID    string    `gorm:"index;size:255;not null"` // Device CR name
-	DeviceName  string    `gorm:"size:255"`                // Friendly name from Tasmota
-	ShortAddr   string    `gorm:"index;size:50"`           // Zigbee short address (e.g., "0xB3CC")
-	IEEEAddr    string    `gorm:"index;size:100"`          // IEEE address if available
-	Temperature *float64  `gorm:"type:decimal(5,2)"`       // Temperature in Celsius
-	Humidity    *float64  `gorm:"type:decimal(5,2)"`       // Humidity percentage
-	LinkQuality *int      // Link quality (0-255)
+	DeviceID    uint      `gorm:"index;not null"` // Foreign key to devices table
+	Device      Device    `gorm:"foreignKey:DeviceID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Temperature *float64  `gorm:"type:decimal(5,2)"` // Temperature in Celsius
+	Humidity    *float64  `gorm:"type:decimal(5,2)"` // Humidity percentage
 	Endpoint    *int      // Zigbee endpoint
 }
 
