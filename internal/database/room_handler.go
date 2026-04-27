@@ -159,7 +159,6 @@ func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string)
 
 	var measurement RoomMeasurement
 	err := h.db.WithContext(ctx).
-		Preload("Device").
 		Where("device_id = ?", device.ID).
 		Order("timestamp DESC").
 		First(&measurement).Error
@@ -170,6 +169,9 @@ func (h *RoomHandler) GetLatestMeasurement(ctx context.Context, deviceID string)
 		}
 		return nil, fmt.Errorf("failed to get latest measurement: %w", err)
 	}
+
+	// Manually assign device to avoid preload issues in tests
+	measurement.Device = device
 
 	return &measurement, nil
 }
@@ -186,13 +188,17 @@ func (h *RoomHandler) GetMeasurementsByTimeRange(ctx context.Context, deviceID s
 
 	var measurements []RoomMeasurement
 	err := h.db.WithContext(ctx).
-		Preload("Device").
 		Where("device_id = ? AND timestamp BETWEEN ? AND ?", device.ID, start, end).
 		Order("timestamp ASC").
 		Find(&measurements).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get measurements by time range: %w", err)
+	}
+
+	// Manually assign device to each measurement
+	for i := range measurements {
+		measurements[i].Device = device
 	}
 
 	return measurements, nil

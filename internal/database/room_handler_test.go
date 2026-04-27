@@ -146,7 +146,7 @@ func TestRoomHandler_GetLatestMeasurement(t *testing.T) {
 		WithArgs("test-device", 1).
 		WillReturnRows(deviceRows)
 
-	// Mock expectations for SELECT measurement with preload
+	// Mock expectations for SELECT measurement (no preload now)
 	now := time.Now()
 	temp := 27.38
 	humidity := 51.08
@@ -161,17 +161,6 @@ func TestRoomHandler_GetLatestMeasurement(t *testing.T) {
 	mock.ExpectQuery(`SELECT \* FROM "room_measurements" WHERE device_id`).
 		WithArgs(1, 1).
 		WillReturnRows(measurementRows)
-
-	// Mock preload of Device - GORM preloads using device_id field, not id
-	devicePreloadRows := sqlmock.NewRows([]string{
-		"id", "device_id", "device_name", "short_addr", "ieee_addr", "created_at", "updated_at",
-	}).AddRow(
-		1, "test-device", "room-sensor", "0xB3CC", "", time.Now(), time.Now(),
-	)
-
-	mock.ExpectQuery(`SELECT \* FROM "devices" WHERE "devices"\."device_id"`).
-		WithArgs(1).
-		WillReturnRows(devicePreloadRows)
 
 	ctx := context.Background()
 	measurement, err := handler.GetLatestMeasurement(ctx, "test-device")
