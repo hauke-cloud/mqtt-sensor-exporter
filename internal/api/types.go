@@ -78,6 +78,24 @@ type AlertsResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// AlertFilters contains filter parameters for alert queries
+type AlertFilters struct {
+	// DeviceName filters by specific device name (from path parameter)
+	DeviceName string
+
+	// DeviceType filters by sensor type (e.g., "valve", "moisture")
+	DeviceType string
+
+	// Since filters alerts triggered since this duration (e.g., "1min", "5m", "1h")
+	Since time.Duration
+
+	// Location filters by device location
+	Location string
+
+	// Room filters by device room
+	Room string
+}
+
 // ErrorResponse represents an error response
 type ErrorResponse struct {
 	// Error is the error message

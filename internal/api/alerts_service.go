@@ -45,7 +45,7 @@ func NewAlertsService(k8sClient client.Client, db *gorm.DB, log *zap.Logger) *Al
 }
 
 // GetTriggeredAlerts returns all devices that have triggered their alert thresholds
-func (s *AlertsService) GetTriggeredAlerts(ctx context.Context) ([]AlertDevice, error) {
+func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFilters) ([]AlertDevice, error) {
 	// Get all devices from Kubernetes that have alert conditions and are in alert state
 	deviceList := &iotv1alpha1.DeviceList{}
 	if err := s.k8sClient.List(ctx, deviceList); err != nil {
@@ -54,6 +54,10 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context) ([]AlertDevice, 
 	}
 
 	var alertDevices []AlertDevice
+	sinceTime := time.Time{}
+	if filters.Since > 0 {
+		sinceTime = time.Now().Add(-filters.Since)
+	}
 
 	for _, device := range deviceList.Items {
 		// Skip if device has no alert condition configured
@@ -71,6 +75,23 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context) ([]AlertDevice, 
 			continue
 		}
 
+		// Apply filters
+		if filters.DeviceName != "" && device.Name != filters.DeviceName {
+			continue
+		}
+
+		if filters.DeviceType != "" && device.Spec.SensorType != filters.DeviceType {
+			continue
+		}
+
+		if filters.Location != "" && device.Spec.Location != filters.Location {
+			continue
+		}
+
+		if filters.Room != "" && device.Spec.Room != filters.Room {
+			continue
+		}
+
 		// Get the latest measurement for this device
 		dbDevice, currentValue, lastMeasurement, err := s.getLatestMeasurement(ctx, device.Name, device.Spec.SensorType, device.Spec.AlertCondition.Measurement)
 		if err != nil {
@@ -78,6 +99,13 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context) ([]AlertDevice, 
 				zap.String("device", device.Name),
 				zap.Error(err))
 			// Continue to next device - we still want to report the alert even without measurement data
+		}
+
+		// Apply time filter based on last measurement
+		if filters.Since > 0 && lastMeasurement != nil {
+			if lastMeasurement.Before(sinceTime) {
+				continue
+			}
 		}
 
 		alertDevice := AlertDevice{
@@ -105,7 +133,10 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context) ([]AlertDevice, 
 	}
 
 	s.log.Info("Retrieved triggered alerts",
-		zap.Int("count", len(alertDevices)))
+		zap.Int("count", len(alertDevices)),
+		zap.String("device_name_filter", filters.DeviceName),
+		zap.String("device_type_filter", filters.DeviceType),
+		zap.Duration("since_filter", filters.Since))
 
 	return alertDevices, nil
 }

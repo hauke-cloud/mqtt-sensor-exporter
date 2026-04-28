@@ -18,7 +18,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -38,7 +40,7 @@ func NewHandler(alertsService *AlertsService, log *zap.Logger) *Handler {
 	}
 }
 
-// HandleAlerts handles GET /v2/api/alerts
+// HandleAlerts handles GET /api/v2/alerts and GET /api/v2/alerts/{device-name}
 func (h *Handler) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 	// Only allow GET requests
 	if r.Method != http.MethodGet {
@@ -52,15 +54,32 @@ func (h *Handler) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 		clientCN = r.TLS.PeerCertificates[0].Subject.CommonName
 	}
 
+	// Parse filters from query parameters and path
+	filters, err := h.parseAlertFilters(r)
+	if err != nil {
+		h.log.Warn("Invalid filter parameters", zap.Error(err))
+		h.sendError(w, fmt.Sprintf("Invalid filter parameters: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	h.log.Info("Processing alerts request",
 		zap.String("client", clientCN),
-		zap.String("remote_addr", r.RemoteAddr))
+		zap.String("remote_addr", r.RemoteAddr),
+		zap.String("device_name", filters.DeviceName),
+		zap.String("device_type", filters.DeviceType),
+		zap.Duration("since", filters.Since))
 
-	// Get triggered alerts
-	devices, err := h.alertsService.GetTriggeredAlerts(r.Context())
+	// Get triggered alerts with filters
+	devices, err := h.alertsService.GetTriggeredAlerts(r.Context(), filters)
 	if err != nil {
 		h.log.Error("Failed to get triggered alerts", zap.Error(err))
 		h.sendError(w, "Failed to retrieve alerts", http.StatusInternalServerError)
+		return
+	}
+
+	// If filtering by device name and no results, return 404
+	if filters.DeviceName != "" && len(devices) == 0 {
+		h.sendError(w, fmt.Sprintf("Device '%s' not found or has no active alerts", filters.DeviceName), http.StatusNotFound)
 		return
 	}
 
@@ -81,6 +100,71 @@ func (h *Handler) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("Alerts request completed",
 		zap.Int("alert_count", len(devices)),
 		zap.String("client", clientCN))
+}
+
+// parseAlertFilters parses query parameters and path parameters into AlertFilters
+func (h *Handler) parseAlertFilters(r *http.Request) (AlertFilters, error) {
+	filters := AlertFilters{}
+
+	// Extract device name from path if present: /api/v2/alerts/{device-name}
+	path := r.URL.Path
+	if strings.HasPrefix(path, "/api/v2/alerts/") {
+		deviceName := strings.TrimPrefix(path, "/api/v2/alerts/")
+		if deviceName != "" && deviceName != "/" {
+			filters.DeviceName = strings.Trim(deviceName, "/")
+		}
+	}
+
+	// Parse query parameters
+	query := r.URL.Query()
+
+	// device-type filter
+	if deviceType := query.Get("device-type"); deviceType != "" {
+		filters.DeviceType = deviceType
+	}
+
+	// location filter
+	if location := query.Get("location"); location != "" {
+		filters.Location = location
+	}
+
+	// room filter
+	if room := query.Get("room"); room != "" {
+		filters.Room = room
+	}
+
+	// since filter - parse duration
+	if sinceStr := query.Get("since"); sinceStr != "" {
+		duration, err := parseDuration(sinceStr)
+		if err != nil {
+			return filters, fmt.Errorf("invalid 'since' parameter: %w", err)
+		}
+		filters.Since = duration
+	}
+
+	return filters, nil
+}
+
+// parseDuration parses duration strings like "1min", "5m", "1h", "30s"
+func parseDuration(s string) (time.Duration, error) {
+	// Handle common abbreviations
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "min", "m")
+	s = strings.ReplaceAll(s, "hour", "h")
+	s = strings.ReplaceAll(s, "sec", "s")
+	s = strings.ReplaceAll(s, "day", "h")
+	
+	// For days, convert to hours
+	if strings.HasSuffix(s, "d") {
+		daysStr := strings.TrimSuffix(s, "d")
+		var days int
+		if _, err := fmt.Sscanf(daysStr, "%d", &days); err != nil {
+			return 0, err
+		}
+		return time.Duration(days*24) * time.Hour, nil
+	}
+
+	return time.ParseDuration(s)
 }
 
 // HandleHealth handles GET /health

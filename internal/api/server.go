@@ -54,7 +54,10 @@ func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	
 	// Register routes
-	mux.HandleFunc("/v2/api/alerts", s.handler.HandleAlerts)
+	// /api/v2/alerts - list all alerts
+	// /api/v2/alerts/{device-name} - get alerts for specific device
+	mux.HandleFunc("/api/v2/alerts", s.handler.HandleAlerts)
+	mux.HandleFunc("/api/v2/alerts/", s.handler.HandleAlerts) // Handles paths with device name
 	mux.HandleFunc("/health", s.handler.HandleHealth)
 
 	// Wrap with logging middleware
