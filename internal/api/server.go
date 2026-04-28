@@ -18,11 +18,8 @@ package api
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -30,23 +27,11 @@ import (
 
 // ServerConfig contains configuration for the API server
 type ServerConfig struct {
-	// Address to bind the server to (e.g., ":8443")
+	// Address to bind the server to (e.g., ":8080")
 	Address string
-
-	// TLSCertPath is the path to the server TLS certificate
-	TLSCertPath string
-
-	// TLSKeyPath is the path to the server TLS key
-	TLSKeyPath string
-
-	// ClientCAPath is the path to the CA certificate for validating client certificates
-	ClientCAPath string
-
-	// RequireClientCert determines if client certificates are required
-	RequireClientCert bool
 }
 
-// Server is the REST API server with client certificate authentication
+// Server is the REST API server
 type Server struct {
 	config  ServerConfig
 	handler *Handler
@@ -63,14 +48,8 @@ func NewServer(config ServerConfig, handler *Handler, log *zap.Logger) *Server {
 	}
 }
 
-// Start starts the API server with TLS and client certificate authentication
+// Start starts the API server
 func (s *Server) Start(ctx context.Context) error {
-	// Set up TLS configuration
-	tlsConfig, err := s.setupTLS()
-	if err != nil {
-		return fmt.Errorf("failed to setup TLS: %w", err)
-	}
-
 	// Create router
 	mux := http.NewServeMux()
 	
@@ -83,9 +62,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Create HTTP server
 	s.server = &http.Server{
-		Addr:      s.config.Address,
-		Handler:   handler,
-		TLSConfig: tlsConfig,
+		Addr:    s.config.Address,
+		Handler: handler,
 		// Security timeouts
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -94,13 +72,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	s.log.Info("Starting API server",
-		zap.String("address", s.config.Address),
-		zap.Bool("client_cert_required", s.config.RequireClientCert))
+		zap.String("address", s.config.Address))
 
 	// Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		if err := s.server.ListenAndServeTLS(s.config.TLSCertPath, s.config.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
 	}()
@@ -123,50 +100,4 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 	return s.server.Shutdown(ctx)
-}
-
-// setupTLS configures TLS with client certificate authentication
-func (s *Server) setupTLS() (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		},
-		PreferServerCipherSuites: true,
-	}
-
-	// Configure client certificate authentication
-	if s.config.ClientCAPath != "" {
-		// Load CA certificate for validating client certificates
-		caCert, err := os.ReadFile(s.config.ClientCAPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read client CA certificate: %w", err)
-		}
-
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse client CA certificate")
-		}
-
-		tlsConfig.ClientCAs = caCertPool
-
-		// Set client certificate policy
-		if s.config.RequireClientCert {
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-			s.log.Info("Client certificate authentication enabled",
-				zap.String("mode", "required"))
-		} else {
-			tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
-			s.log.Info("Client certificate authentication enabled",
-				zap.String("mode", "optional"))
-		}
-	} else {
-		s.log.Warn("No client CA path provided, client certificate authentication disabled")
-		tlsConfig.ClientAuth = tls.NoClientCert
-	}
-
-	return tlsConfig, nil
 }

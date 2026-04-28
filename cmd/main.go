@@ -64,8 +64,7 @@ func main() {
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
-	var apiBindAddress, apiTLSCertPath, apiTLSKeyPath, apiClientCAPath string
-	var apiRequireClientCert bool
+	var apiBindAddress string
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
@@ -89,11 +88,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	// API server flags
-	flag.StringVar(&apiBindAddress, "api-bind-address", ":8443", "The address the REST API server binds to.")
-	flag.StringVar(&apiTLSCertPath, "api-tls-cert-path", "/certs/api/tls.crt", "Path to the API server TLS certificate.")
-	flag.StringVar(&apiTLSKeyPath, "api-tls-key-path", "/certs/api/tls.key", "Path to the API server TLS key.")
-	flag.StringVar(&apiClientCAPath, "api-client-ca-path", "/certs/api/ca.crt", "Path to the CA certificate for validating client certificates.")
-	flag.BoolVar(&apiRequireClientCert, "api-require-client-cert", true, "If set, client certificates are required for API access.")
+	flag.StringVar(&apiBindAddress, "api-bind-address", ":8080", "The address the REST API server binds to (HTTP).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -259,10 +254,7 @@ func main() {
 		// Get database connection from manager for API service
 		// We'll need to wait for at least one database connection
 		setupLog.Info("Configuring REST API server",
-			"address", apiBindAddress,
-			"tls-cert", apiTLSCertPath,
-			"client-ca", apiClientCAPath,
-			"require-client-cert", apiRequireClientCert)
+			"address", apiBindAddress)
 
 		// Create a function to get DB connection when needed
 		getDB := func() *gorm.DB {
@@ -283,11 +275,7 @@ func main() {
 		apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
 		
 		apiConfig := api.ServerConfig{
-			Address:           apiBindAddress,
-			TLSCertPath:       apiTLSCertPath,
-			TLSKeyPath:        apiTLSKeyPath,
-			ClientCAPath:      apiClientCAPath,
-			RequireClientCert: apiRequireClientCert,
+			Address: apiBindAddress,
 		}
 		
 		apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))

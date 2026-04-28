@@ -43,6 +43,9 @@ spec:
           {{- if not .Values.operator.installCRDs }}
           - --install-crds=false
           {{- end }}
+          {{- if .Values.api.enabled }}
+          - --api-bind-address={{ .Values.api.bindAddress }}
+          {{- end }}
         ports:
         {{- if .Values.operator.metrics.enabled }}
         - containerPort: {{ .Values.operator.metrics.port }}
@@ -52,6 +55,11 @@ spec:
         - containerPort: {{ .Values.operator.health.port }}
           name: health
           protocol: TCP
+        {{- if .Values.api.enabled }}
+        - containerPort: {{ .Values.api.port }}
+          name: api
+          protocol: TCP
+        {{- end }}
         securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
         livenessProbe:

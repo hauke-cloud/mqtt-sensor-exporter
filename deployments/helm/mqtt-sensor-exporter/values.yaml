@@ -129,3 +129,43 @@ logging:
   level: "info"
   # Log format: json, console
   format: "json"
+
+# REST API configuration
+api:
+  # Enable the REST API server
+  enabled: true
+  # Port for the API server (HTTP, TLS handled by ingress)
+  port: 8080
+  # Bind address for the API
+  bindAddress: ":8080"
+  # Service configuration for the API
+  service:
+    # Service type: ClusterIP, NodePort, LoadBalancer
+    type: ClusterIP
+    # Service port
+    port: 8080
+    # Additional annotations for the service
+    annotations: {}
+  # Ingress configuration for the API
+  ingress:
+    # Enable ingress for the API
+    enabled: false
+    # Ingress class name
+    className: ""
+    # Annotations for the ingress (configure client cert auth here)
+    annotations: {}
+      # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      # nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+      # nginx.ingress.kubernetes.io/auth-tls-secret: "default/client-ca-secret"
+      # nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+    # Ingress hosts
+    hosts:
+      - host: mqtt-sensor-exporter-api.local
+        paths:
+          - path: /
+            pathType: Prefix
+    # TLS configuration for ingress
+    tls: []
+      # - secretName: mqtt-sensor-exporter-api-tls
+      #   hosts:
+      #     - mqtt-sensor-exporter-api.local

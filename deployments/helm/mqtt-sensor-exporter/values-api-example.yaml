@@ -1,0 +1,126 @@
+# Example configuration for enabling the REST API with Ingress and client certificate authentication
+#
+# This example shows how to expose the mqtt-sensor-exporter REST API using an Ingress controller
+# with TLS termination and client certificate authentication handled at the ingress level.
+#
+# Usage:
+#   helm install mqtt-sensor-exporter ./mqtt-sensor-exporter -f values-api-example.yaml
+
+# Enable and configure the REST API
+api:
+  enabled: true
+  port: 8080
+  bindAddress: ":8080"
+  
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+  
+  ingress:
+    enabled: true
+    className: "nginx"  # or "traefik", depending on your ingress controller
+    
+    annotations:
+      # TLS certificate management (using cert-manager)
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      
+      # Client certificate authentication (nginx ingress controller)
+      # Requires a secret containing the CA certificate for validating client certs
+      nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+      nginx.ingress.kubernetes.io/auth-tls-secret: "default/mqtt-api-client-ca"
+      nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+      nginx.ingress.kubernetes.io/auth-tls-error-page: "https://example.com/cert-error.html"
+      
+      # Optional: Pass client certificate info to backend
+      nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
+      
+      # Optional: Additional security headers
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    
+    hosts:
+      - host: mqtt-api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    
+    tls:
+      - secretName: mqtt-api-tls
+        hosts:
+          - mqtt-api.example.com
+
+# Example for Traefik ingress controller with client cert auth:
+#
+# api:
+#   ingress:
+#     enabled: true
+#     className: "traefik"
+#     annotations:
+#       cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#       traefik.ingress.kubernetes.io/router.tls: "true"
+#       traefik.ingress.kubernetes.io/router.tls.options: "default-client-cert@kubernetescrd"
+#     hosts:
+#       - host: mqtt-api.example.com
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#     tls:
+#       - secretName: mqtt-api-tls
+#         hosts:
+#           - mqtt-api.example.com
+
+# Setup Instructions:
+#
+# 1. Create a secret with the CA certificate for validating client certificates:
+#
+#    kubectl create secret generic mqtt-api-client-ca \
+#      --from-file=ca.crt=/path/to/client-ca.crt \
+#      --namespace=default
+#
+# 2. (Optional) If using cert-manager, create a ClusterIssuer:
+#
+#    apiVersion: cert-manager.io/v1
+#    kind: ClusterIssuer
+#    metadata:
+#      name: letsencrypt-prod
+#    spec:
+#      acme:
+#        server: https://acme-v02.api.letsencrypt.org/directory
+#        email: admin@example.com
+#        privateKeySecretRef:
+#          name: letsencrypt-prod
+#        solvers:
+#        - http01:
+#            ingress:
+#              class: nginx
+#
+# 3. Deploy the Helm chart:
+#
+#    helm install mqtt-sensor-exporter ./mqtt-sensor-exporter \
+#      -f values-api-example.yaml \
+#      --namespace iot-system \
+#      --create-namespace
+#
+# 4. Generate client certificates signed by your CA:
+#
+#    # Generate client private key
+#    openssl genrsa -out client.key 4096
+#    
+#    # Generate client certificate signing request
+#    openssl req -new -key client.key -out client.csr \
+#      -subj "/CN=monitoring-client/O=example.com"
+#    
+#    # Sign with your CA
+#    openssl x509 -req -days 365 -in client.csr \
+#      -CA ca.crt -CAkey ca.key -CAcreateserial \
+#      -out client.crt
+#
+# 5. Test the API with curl:
+#
+#    curl --cert client.crt --key client.key \
+#      https://mqtt-api.example.com/v2/api/alerts
+#
+# API Endpoints:
+#   - GET /v2/api/alerts - Get all devices with triggered alerts
+#   - GET /health - Health check endpoint (no auth required)

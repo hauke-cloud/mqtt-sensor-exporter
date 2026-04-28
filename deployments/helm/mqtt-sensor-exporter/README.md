@@ -115,6 +115,75 @@ monitoring:
 | `logging.level` | Log level (debug, info, warn, error) | `info` |
 | `logging.format` | Log format (json, console) | `json` |
 
+### REST API Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `api.enabled` | Enable REST API server | `true` |
+| `api.port` | API server port | `8080` |
+| `api.bindAddress` | API bind address | `:8080` |
+| `api.service.type` | Service type | `ClusterIP` |
+| `api.service.port` | Service port | `8080` |
+| `api.service.annotations` | Service annotations | `{}` |
+| `api.ingress.enabled` | Enable ingress | `false` |
+| `api.ingress.className` | Ingress class name | `""` |
+| `api.ingress.annotations` | Ingress annotations | `{}` |
+| `api.ingress.hosts` | Ingress hosts configuration | See values.yaml |
+| `api.ingress.tls` | Ingress TLS configuration | `[]` |
+
+## REST API Configuration
+
+The MQTT Sensor Exporter includes a REST API for querying alert data. The API runs without TLS at the pod level, with TLS termination and client certificate authentication handled by the ingress controller.
+
+### Enable API with Ingress
+
+```yaml
+api:
+  enabled: true
+  port: 8080
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      # Client certificate authentication
+      nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+      nginx.ingress.kubernetes.io/auth-tls-secret: "default/mqtt-api-client-ca"
+      nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+    hosts:
+      - host: mqtt-api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: mqtt-api-tls
+        hosts:
+          - mqtt-api.example.com
+```
+
+### Setup Client Certificate Authentication
+
+1. Create a secret with your CA certificate for validating client certificates:
+
+```bash
+kubectl create secret generic mqtt-api-client-ca \
+  --from-file=ca.crt=/path/to/client-ca.crt
+```
+
+2. Deploy the chart with API and ingress enabled (see `values-api-example.yaml` for a complete example)
+
+3. Generate client certificates signed by your CA and use them to access the API
+
+### API Endpoints
+
+- `GET /v2/api/alerts` - Get all devices with triggered alerts (requires client cert)
+- `GET /health` - Health check endpoint (no auth)
+
+For more details, see `values-api-example.yaml` and the [REST API documentation](../../../REST_API_IMPLEMENTATION.md).
+
 ## Usage
 
 After installation, create MQTTBridge and Database resources:
