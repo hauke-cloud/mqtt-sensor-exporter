@@ -273,8 +273,8 @@ func main() {
 		}
 
 		// Create API components
-		// Note: We pass nil for DB initially, the service will use getDB when needed
-		alertsService := api.NewAlertsService(mgr.GetClient(), nil, zapLog.With(uberzap.String("component", "api-alerts")))
+		// Pass a function that can dynamically retrieve the database connection
+		alertsService := api.NewAlertsService(mgr.GetClient(), getDB, zapLog.With(uberzap.String("component", "api-alerts")))
 		apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
 
 		apiConfig := api.ServerConfig{
@@ -288,13 +288,7 @@ func main() {
 			// Wait a bit for database to be ready
 			time.Sleep(5 * time.Second)
 
-			// Update the alerts service with DB connection
-			if db := getDB(); db != nil {
-				alertsService := api.NewAlertsService(mgr.GetClient(), db, zapLog.With(uberzap.String("component", "api-alerts")))
-				apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
-				apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))
-			}
-
+			setupLog.Info("Starting REST API server")
 			if err := apiServer.Start(ctx); err != nil {
 				setupLog.Error(err, "API server stopped with error")
 			}

@@ -32,15 +32,16 @@ import (
 // AlertsService handles fetching devices with triggered alerts
 type AlertsService struct {
 	k8sClient client.Client
-	db        *gorm.DB
+	dbGetter  func() *gorm.DB
 	log       *zap.Logger
 }
 
 // NewAlertsService creates a new alerts service
-func NewAlertsService(k8sClient client.Client, db *gorm.DB, log *zap.Logger) *AlertsService {
+// dbGetter is a function that returns the current database connection (can be nil if not yet available)
+func NewAlertsService(k8sClient client.Client, dbGetter func() *gorm.DB, log *zap.Logger) *AlertsService {
 	return &AlertsService{
 		k8sClient: k8sClient,
-		db:        db,
+		dbGetter:  dbGetter,
 		log:       log,
 	}
 }
@@ -156,9 +157,15 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 
 // getLatestMeasurement retrieves the latest measurement value for a device
 func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sensorType, measurementField string) (*databaseiotgorm.Device, *float64, *time.Time, error) {
+	// Get database connection
+	db := s.dbGetter()
+	if db == nil {
+		return nil, nil, nil, fmt.Errorf("database not available")
+	}
+
 	// First get the device from database
 	var dbDevice databaseiotgorm.Device
-	if err := s.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&dbDevice).Error; err != nil {
+	if err := db.WithContext(ctx).Where("device_id = ?", deviceID).First(&dbDevice).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil, nil, fmt.Errorf("device not found in database")
 		}
@@ -172,7 +179,7 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 	switch sensorType {
 	case "moisture":
 		var measurement databaseiotgorm.MoistureMeasurement
-		err := s.db.WithContext(ctx).
+		err := db.WithContext(ctx).
 			Where("device_id = ?", dbDevice.ID).
 			Order("timestamp DESC").
 			First(&measurement).Error
@@ -187,7 +194,7 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 
 	case "valve":
 		var measurement databaseiotgorm.ValveMeasurement
-		err := s.db.WithContext(ctx).
+		err := db.WithContext(ctx).
 			Where("device_id = ?", dbDevice.ID).
 			Order("timestamp DESC").
 			First(&measurement).Error
@@ -202,7 +209,7 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 
 	case "water_level":
 		var measurement databaseiotgorm.WaterLevelMeasurement
-		err := s.db.WithContext(ctx).
+		err := db.WithContext(ctx).
 			Where("device_id = ?", dbDevice.ID).
 			Order("timestamp DESC").
 			First(&measurement).Error
@@ -217,7 +224,7 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 
 	case "room":
 		var measurement databaseiotgorm.RoomMeasurement
-		err := s.db.WithContext(ctx).
+		err := db.WithContext(ctx).
 			Where("device_id = ?", dbDevice.ID).
 			Order("timestamp DESC").
 			First(&measurement).Error
