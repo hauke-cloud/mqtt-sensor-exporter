@@ -88,7 +88,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	// API server flags
-	flag.StringVar(&apiBindAddress, "api-bind-address", ":8080", "The address the REST API server binds to (HTTP).")
+	flag.StringVar(&apiBindAddress, "api-bind-address", ":8111", "The address the REST API server binds to (HTTP).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -273,31 +273,31 @@ func main() {
 		// Note: We pass nil for DB initially, the service will use getDB when needed
 		alertsService := api.NewAlertsService(mgr.GetClient(), nil, zapLog.With(uberzap.String("component", "api-alerts")))
 		apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
-		
+
 		apiConfig := api.ServerConfig{
 			Address: apiBindAddress,
 		}
-		
+
 		apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))
-		
+
 		// Start API server in background
 		go func() {
 			ctx := ctrl.SetupSignalHandler()
 			// Wait a bit for database to be ready
 			time.Sleep(5 * time.Second)
-			
+
 			// Update the alerts service with DB connection
 			if db := getDB(); db != nil {
 				alertsService := api.NewAlertsService(mgr.GetClient(), db, zapLog.With(uberzap.String("component", "api-alerts")))
 				apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
 				apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))
 			}
-			
+
 			if err := apiServer.Start(ctx); err != nil {
 				setupLog.Error(err, "API server stopped with error")
 			}
 		}()
-		
+
 		setupLog.Info("REST API server will start after database connection is established")
 	}
 

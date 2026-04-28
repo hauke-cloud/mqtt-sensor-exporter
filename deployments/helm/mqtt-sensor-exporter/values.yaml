@@ -97,7 +97,7 @@ samples:
     deviceType: "tasmota"
     # Secret name for MQTT credentials
     credentialsSecret: "mqtt-credentials"
-  
+
   # Create sample Database
   database:
     enabled: false
@@ -135,15 +135,15 @@ api:
   # Enable the REST API server
   enabled: true
   # Port for the API server (HTTP, TLS handled by ingress)
-  port: 8080
+  port: 8111
   # Bind address for the API
-  bindAddress: ":8080"
+  bindAddress: ":8111"
   # Service configuration for the API
   service:
     # Service type: ClusterIP, NodePort, LoadBalancer
     type: ClusterIP
     # Service port
-    port: 8080
+    port: 8111
     # Additional annotations for the service
     annotations: {}
   # Ingress configuration for the API
