@@ -21,12 +21,14 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	uberzap "go.uber.org/zap"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
+	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/api"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/database"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/mqtt"
 	"github.com/hauke-cloud/mqtt-sensor-exporter/internal/watcher"
@@ -61,6 +64,8 @@ func main() {
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
+	var apiBindAddress, apiTLSCertPath, apiTLSKeyPath, apiClientCAPath string
+	var apiRequireClientCert bool
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
@@ -83,6 +88,12 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	// API server flags
+	flag.StringVar(&apiBindAddress, "api-bind-address", ":8443", "The address the REST API server binds to.")
+	flag.StringVar(&apiTLSCertPath, "api-tls-cert-path", "/certs/api/tls.crt", "Path to the API server TLS certificate.")
+	flag.StringVar(&apiTLSKeyPath, "api-tls-key-path", "/certs/api/tls.key", "Path to the API server TLS key.")
+	flag.StringVar(&apiClientCAPath, "api-client-ca-path", "/certs/api/ca.crt", "Path to the CA certificate for validating client certificates.")
+	flag.BoolVar(&apiRequireClientCert, "api-require-client-cert", true, "If set, client certificates are required for API access.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -241,6 +252,66 @@ func main() {
 		os.Exit(1)
 	}
 	setupLog.Info("Set up MQTTBridge watcher")
+
+	// Set up REST API server if configured
+	var apiServer *api.Server
+	if apiBindAddress != "" && apiBindAddress != "0" {
+		// Get database connection from manager for API service
+		// We'll need to wait for at least one database connection
+		setupLog.Info("Configuring REST API server",
+			"address", apiBindAddress,
+			"tls-cert", apiTLSCertPath,
+			"client-ca", apiClientCAPath,
+			"require-client-cert", apiRequireClientCert)
+
+		// Create a function to get DB connection when needed
+		getDB := func() *gorm.DB {
+			// Try to get a database connection from the manager
+			// This will be available after a Database resource is created
+			conns := dbManager.GetConnections()
+			if len(conns) > 0 {
+				for _, conn := range conns {
+					return conn.GetDB()
+				}
+			}
+			return nil
+		}
+
+		// Create API components
+		// Note: We pass nil for DB initially, the service will use getDB when needed
+		alertsService := api.NewAlertsService(mgr.GetClient(), nil, zapLog.With(uberzap.String("component", "api-alerts")))
+		apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
+		
+		apiConfig := api.ServerConfig{
+			Address:           apiBindAddress,
+			TLSCertPath:       apiTLSCertPath,
+			TLSKeyPath:        apiTLSKeyPath,
+			ClientCAPath:      apiClientCAPath,
+			RequireClientCert: apiRequireClientCert,
+		}
+		
+		apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))
+		
+		// Start API server in background
+		go func() {
+			ctx := ctrl.SetupSignalHandler()
+			// Wait a bit for database to be ready
+			time.Sleep(5 * time.Second)
+			
+			// Update the alerts service with DB connection
+			if db := getDB(); db != nil {
+				alertsService := api.NewAlertsService(mgr.GetClient(), db, zapLog.With(uberzap.String("component", "api-alerts")))
+				apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
+				apiServer = api.NewServer(apiConfig, apiHandler, zapLog.With(uberzap.String("component", "api-server")))
+			}
+			
+			if err := apiServer.Start(ctx); err != nil {
+				setupLog.Error(err, "API server stopped with error")
+			}
+		}()
+		
+		setupLog.Info("REST API server will start after database connection is established")
+	}
 
 	// +kubebuilder:scaffold:builder
 

@@ -414,3 +414,21 @@ func (m *Manager) getSecretValue(ctx context.Context, namespace, secretName, key
 
 	return string(value), nil
 }
+
+// GetConnections returns a copy of all active database connections
+func (m *Manager) GetConnections() map[string]*Connection {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Return a copy to avoid external modifications
+	result := make(map[string]*Connection)
+	for k, v := range m.connections {
+		result[k] = v
+	}
+	return result
+}
+
+// GetDB returns the GORM database instance for a connection
+func (c *Connection) GetDB() *gorm.DB {
+	return c.db
+}
