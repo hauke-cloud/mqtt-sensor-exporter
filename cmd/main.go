@@ -248,6 +248,9 @@ func main() {
 	}
 	setupLog.Info("Set up MQTTBridge watcher")
 
+	// Set up signal handler once for the entire application
+	ctx := ctrl.SetupSignalHandler()
+
 	// Set up REST API server if configured
 	var apiServer *api.Server
 	if apiBindAddress != "" && apiBindAddress != "0" {
@@ -282,7 +285,6 @@ func main() {
 
 		// Start API server in background
 		go func() {
-			ctx := ctrl.SetupSignalHandler()
 			// Wait a bit for database to be ready
 			time.Sleep(5 * time.Second)
 
@@ -313,7 +315,7 @@ func main() {
 	}
 
 	setupLog.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
