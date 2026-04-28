@@ -89,10 +89,11 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 			continue
 		}
 
-		// Get the latest measurement for this device
-		dbDevice, currentValue, lastMeasurement, err := s.getLatestMeasurement(ctx, device.Name, device.Spec.SensorType, device.Spec.AlertCondition.Measurement)
+		// Get the measurement value for this device
+		// If 'since' filter is provided, calculate average over that time window
+		dbDevice, currentValue, lastMeasurement, err := s.getMeasurementValue(ctx, device.Name, device.Spec.SensorType, device.Spec.AlertCondition.Measurement, filters.Since)
 		if err != nil {
-			s.log.Warn("Failed to get latest measurement for device",
+			s.log.Warn("Failed to get measurement value for device",
 				zap.String("device", device.Name),
 				zap.Error(err))
 			// Skip this device - we can't evaluate the alert without measurement data
@@ -155,8 +156,10 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 	return alertDevices, nil
 }
 
-// getLatestMeasurement retrieves the latest measurement value for a device
-func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sensorType, measurementField string) (*databaseiotgorm.Device, *float64, *time.Time, error) {
+// getMeasurementValue retrieves the measurement value for a device
+// If sinceDuration > 0, calculates the average over that time window
+// Otherwise, returns the latest measurement value
+func (s *AlertsService) getMeasurementValue(ctx context.Context, deviceID, sensorType, measurementField string, sinceDuration time.Duration) (*databaseiotgorm.Device, *float64, *time.Time, error) {
 	// Get database connection
 	db := s.dbGetter()
 	if db == nil {
@@ -172,6 +175,105 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 		return nil, nil, nil, fmt.Errorf("failed to query device: %w", err)
 	}
 
+	// Determine if we should calculate average or get latest
+	if sinceDuration > 0 {
+		return s.getAverageMeasurement(ctx, db, &dbDevice, sensorType, measurementField, sinceDuration)
+	}
+	return s.getLatestMeasurement(ctx, db, &dbDevice, sensorType, measurementField)
+}
+
+// getAverageMeasurement calculates the average measurement value over a time window
+func (s *AlertsService) getAverageMeasurement(ctx context.Context, db *gorm.DB, dbDevice *databaseiotgorm.Device, sensorType, measurementField string, sinceDuration time.Duration) (*databaseiotgorm.Device, *float64, *time.Time, error) {
+	// Calculate the time range
+	sinceTime := time.Now().Add(-sinceDuration)
+	
+	var avgValue float64
+	var lastTimestamp time.Time
+	var err error
+
+	switch sensorType {
+	case "moisture":
+		var result struct {
+			AvgValue      float64
+			LastTimestamp time.Time
+		}
+		
+		query := db.WithContext(ctx).
+			Table("moisture_measurements").
+			Select("AVG("+getMeasurementColumn(measurementField)+") as avg_value, MAX(timestamp) as last_timestamp").
+			Where("device_id = ? AND timestamp >= ?", dbDevice.ID, sinceTime)
+		
+		err = query.Scan(&result).Error
+		avgValue = result.AvgValue
+		lastTimestamp = result.LastTimestamp
+
+	case "valve":
+		var result struct {
+			AvgValue      float64
+			LastTimestamp time.Time
+		}
+		
+		query := db.WithContext(ctx).
+			Table("valve_measurements").
+			Select("AVG("+getMeasurementColumn(measurementField)+") as avg_value, MAX(timestamp) as last_timestamp").
+			Where("device_id = ? AND timestamp >= ?", dbDevice.ID, sinceTime)
+		
+		err = query.Scan(&result).Error
+		avgValue = result.AvgValue
+		lastTimestamp = result.LastTimestamp
+
+	case "water_level":
+		var result struct {
+			AvgValue      float64
+			LastTimestamp time.Time
+		}
+		
+		query := db.WithContext(ctx).
+			Table("water_level_measurements").
+			Select("AVG("+getMeasurementColumn(measurementField)+") as avg_value, MAX(timestamp) as last_timestamp").
+			Where("device_id = ? AND timestamp >= ?", dbDevice.ID, sinceTime)
+		
+		err = query.Scan(&result).Error
+		avgValue = result.AvgValue
+		lastTimestamp = result.LastTimestamp
+
+	case "room":
+		var result struct {
+			AvgValue      float64
+			LastTimestamp time.Time
+		}
+		
+		query := db.WithContext(ctx).
+			Table("room_measurements").
+			Select("AVG("+getMeasurementColumn(measurementField)+") as avg_value, MAX(timestamp) as last_timestamp").
+			Where("device_id = ? AND timestamp >= ?", dbDevice.ID, sinceTime)
+		
+		err = query.Scan(&result).Error
+		avgValue = result.AvgValue
+		lastTimestamp = result.LastTimestamp
+
+	default:
+		return dbDevice, nil, nil, fmt.Errorf("unsupported sensor type: %s", sensorType)
+	}
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return dbDevice, nil, nil, nil
+		}
+		return dbDevice, nil, nil, err
+	}
+
+	// Check if we got valid data
+	if lastTimestamp.IsZero() {
+		return dbDevice, nil, nil, nil
+	}
+
+	return dbDevice, &avgValue, &lastTimestamp, nil
+}
+
+// getLatestMeasurement retrieves the latest single measurement value for a device
+func (s *AlertsService) getLatestMeasurement(ctx context.Context, db *gorm.DB, dbDevice *databaseiotgorm.Device, sensorType, measurementField string) (*databaseiotgorm.Device, *float64, *time.Time, error) {
+
 	// Query the latest measurement based on sensor type
 	var value *float64
 	var timestamp *time.Time
@@ -185,9 +287,9 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 			First(&measurement).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return &dbDevice, nil, nil, nil
+				return dbDevice, nil, nil, nil
 			}
-			return &dbDevice, nil, nil, err
+			return dbDevice, nil, nil, err
 		}
 		timestamp = &measurement.Timestamp
 		value = s.extractMeasurementValue(&measurement, measurementField)
@@ -200,9 +302,9 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 			First(&measurement).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return &dbDevice, nil, nil, nil
+				return dbDevice, nil, nil, nil
 			}
-			return &dbDevice, nil, nil, err
+			return dbDevice, nil, nil, err
 		}
 		timestamp = &measurement.Timestamp
 		value = s.extractMeasurementValue(&measurement, measurementField)
@@ -215,9 +317,9 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 			First(&measurement).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return &dbDevice, nil, nil, nil
+				return dbDevice, nil, nil, nil
 			}
-			return &dbDevice, nil, nil, err
+			return dbDevice, nil, nil, err
 		}
 		timestamp = &measurement.Timestamp
 		value = s.extractMeasurementValue(&measurement, measurementField)
@@ -230,18 +332,18 @@ func (s *AlertsService) getLatestMeasurement(ctx context.Context, deviceID, sens
 			First(&measurement).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return &dbDevice, nil, nil, nil
+				return dbDevice, nil, nil, nil
 			}
-			return &dbDevice, nil, nil, err
+			return dbDevice, nil, nil, err
 		}
 		timestamp = &measurement.Timestamp
 		value = s.extractMeasurementValue(&measurement, measurementField)
 
 	default:
-		return &dbDevice, nil, nil, fmt.Errorf("unsupported sensor type: %s", sensorType)
+		return dbDevice, nil, nil, fmt.Errorf("unsupported sensor type: %s", sensorType)
 	}
 
-	return &dbDevice, value, timestamp, nil
+	return dbDevice, value, timestamp, nil
 }
 
 // extractMeasurementValue extracts a specific field value from a measurement struct
@@ -289,6 +391,22 @@ func (s *AlertsService) extractMeasurementValue(measurement interface{}, fieldNa
 	}
 
 	return nil
+}
+
+// getMeasurementColumn returns the database column name for a measurement field
+func getMeasurementColumn(fieldName string) string {
+	switch fieldName {
+	case "temperature", "Temperature":
+		return "temperature"
+	case "humidity", "Humidity":
+		return "humidity"
+	case "level", "Level", "water_level":
+		return "level"
+	case "power", "Power":
+		return "power"
+	default:
+		return fieldName
+	}
 }
 
 // evaluateAlertCondition checks if an alert condition is met for a given measurement value

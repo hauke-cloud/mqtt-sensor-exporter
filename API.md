@@ -33,16 +33,37 @@ nginx.ingress.kubernetes.io/auth-tls-secret: "default/mqtt-api-client-ca"
 The API evaluates alert conditions **dynamically** by:
 
 1. Fetching all devices with `alertCondition` configured
-2. Querying the database for the latest measurement
+2. Querying the database for measurement values
 3. Evaluating the condition against the measurement value
 4. Returning devices where the condition is met
 
-**Supported Operators**:
+### Measurement Value Calculation
+
+**Without `since` parameter** (default):
+- Uses the **latest single measurement** value
+- Example: Latest water_level = 27
+
+**With `since` parameter**:
+- Calculates the **average (AVG)** over the specified time window
+- Uses SQL AVG to compute mean value
+- Example: `since=5m` → Average water_level over last 5 minutes
+
+```sql
+-- Example query with since=5m
+SELECT AVG(level) as avg_value, MAX(timestamp) as last_timestamp
+FROM water_level_measurements
+WHERE device_id = ? AND timestamp >= NOW() - INTERVAL '5 minutes'
+```
+
+### Supported Operators
+
 - `above` - Measurement > Threshold
 - `below` - Measurement < Threshold  
 - `is` or `equals` - Measurement == Threshold
 
-**Example**:
+### Example Scenarios
+
+**Scenario 1: Instant alert (no `since`)**
 ```yaml
 # Device spec
 alertCondition:
@@ -52,6 +73,20 @@ alertCondition:
 
 # Latest measurement: water_level = 27
 # Evaluation: 27 < 30 → Alert triggered ✓
+```
+
+**Scenario 2: Average over time window**
+```yaml
+# Device spec
+alertCondition:
+  measurement: water_level
+  operator: below
+  value: "30"
+
+# Request: GET /api/v2/alerts?since=5m
+# Measurements in last 5 minutes: [25, 27, 26, 28, 24]
+# Average: 26
+# Evaluation: 26 < 30 → Alert triggered ✓
 ```
 
 **Note**: The API does **not** rely on `device.Status.Alert`. Alert status is not persisted in the Device CRD.
@@ -67,8 +102,10 @@ Returns all devices that have triggered their configured alert thresholds.
   - Values: `valve`, `moisture`, `room`, `water_level`
 - `location` (optional) - Filter by device location
 - `room` (optional) - Filter by device room  
-- `since` (optional) - Filter alerts by time window
+- `since` (optional) - Time window for alert evaluation
   - Examples: `1min`, `5m`, `1h`, `30s`, `1d`
+  - **When provided**: Calculates **average** measurement over the time window
+  - **Without `since`**: Uses the latest single measurement value
 
 **Example Requests**:
 ```bash
