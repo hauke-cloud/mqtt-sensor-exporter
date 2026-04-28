@@ -2,7 +2,15 @@
 
 ## Overview
 
-The mqtt-sensor-exporter provides a REST API for querying IoT sensor alerts. The API runs as an HTTP server inside the Kubernetes cluster, with TLS termination and authentication handled by the ingress controller.
+The mqtt-sensor-exporter provides a REST API for querying IoT sensor alerts. The API evaluates alert conditions **dynamically in real-time** by comparing device measurements against configured thresholds. 
+
+**Key Features**:
+- Real-time alert evaluation from database measurements
+- No Device CRD status updates required
+- Flexible time-based queries with `since` parameter
+- Multiple filter options (device type, location, room)
+
+The API runs as an HTTP server inside the Kubernetes cluster, with TLS termination and authentication handled by the ingress controller.
 
 ## Base URL
 
@@ -19,6 +27,34 @@ Authentication is handled by the ingress controller using client certificates (m
 nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
 nginx.ingress.kubernetes.io/auth-tls-secret: "default/mqtt-api-client-ca"
 ```
+
+## How Alert Evaluation Works
+
+The API evaluates alert conditions **dynamically** by:
+
+1. Fetching all devices with `alertCondition` configured
+2. Querying the database for the latest measurement
+3. Evaluating the condition against the measurement value
+4. Returning devices where the condition is met
+
+**Supported Operators**:
+- `above` - Measurement > Threshold
+- `below` - Measurement < Threshold  
+- `is` or `equals` - Measurement == Threshold
+
+**Example**:
+```yaml
+# Device spec
+alertCondition:
+  measurement: water_level
+  operator: below
+  value: "30"
+
+# Latest measurement: water_level = 27
+# Evaluation: 27 < 30 → Alert triggered ✓
+```
+
+**Note**: The API does **not** rely on `device.Status.Alert`. Alert status is not persisted in the Device CRD.
 
 ## Endpoints
 

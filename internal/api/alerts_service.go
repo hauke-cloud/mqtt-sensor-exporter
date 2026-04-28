@@ -19,6 +19,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
@@ -46,7 +47,7 @@ func NewAlertsService(k8sClient client.Client, db *gorm.DB, log *zap.Logger) *Al
 
 // GetTriggeredAlerts returns all devices that have triggered their alert thresholds
 func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFilters) ([]AlertDevice, error) {
-	// Get all devices from Kubernetes that have alert conditions and are in alert state
+	// Get all devices from Kubernetes that have alert conditions
 	deviceList := &iotv1alpha1.DeviceList{}
 	if err := s.k8sClient.List(ctx, deviceList); err != nil {
 		s.log.Error("Failed to list devices", zap.Error(err))
@@ -70,12 +71,7 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 			continue
 		}
 
-		// Check if alert is currently triggered in the status
-		if !device.Status.Alert {
-			continue
-		}
-
-		// Apply filters
+		// Apply filters early to avoid unnecessary database queries
 		if filters.DeviceName != "" && device.Name != filters.DeviceName {
 			continue
 		}
@@ -98,7 +94,16 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 			s.log.Warn("Failed to get latest measurement for device",
 				zap.String("device", device.Name),
 				zap.Error(err))
-			// Continue to next device - we still want to report the alert even without measurement data
+			// Skip this device - we can't evaluate the alert without measurement data
+			continue
+		}
+
+		// Skip if no measurement value available
+		if currentValue == nil {
+			s.log.Debug("No measurement value for device",
+				zap.String("device", device.Name),
+				zap.String("measurement", device.Spec.AlertCondition.Measurement))
+			continue
 		}
 
 		// Apply time filter based on last measurement
@@ -108,6 +113,14 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 			}
 		}
 
+		// Evaluate the alert condition against the current measurement value
+		alertTriggered := s.evaluateAlertCondition(*currentValue, device.Spec.AlertCondition)
+		if !alertTriggered {
+			// Alert condition not met, skip this device
+			continue
+		}
+
+		// Alert is triggered - add to results
 		alertDevice := AlertDevice{
 			DeviceID:        device.Name,
 			DeviceName:      device.Spec.FriendlyName,
@@ -269,4 +282,34 @@ func (s *AlertsService) extractMeasurementValue(measurement interface{}, fieldNa
 	}
 
 	return nil
+}
+
+// evaluateAlertCondition checks if an alert condition is met for a given measurement value
+func (s *AlertsService) evaluateAlertCondition(measurementValue float64, condition *iotv1alpha1.AlertCondition) bool {
+	if condition == nil {
+		return false
+	}
+
+	// Parse the threshold value from string
+	thresholdValue, err := strconv.ParseFloat(condition.Value, 64)
+	if err != nil {
+		s.log.Warn("Failed to parse alert threshold value",
+			zap.String("value", condition.Value),
+			zap.Error(err))
+		return false
+	}
+
+	// Evaluate based on operator
+	switch condition.Operator {
+	case "above":
+		return measurementValue > thresholdValue
+	case "below":
+		return measurementValue < thresholdValue
+	case "is", "equals":
+		return measurementValue == thresholdValue
+	default:
+		s.log.Warn("Unknown alert operator",
+			zap.String("operator", condition.Operator))
+		return false
+	}
 }
