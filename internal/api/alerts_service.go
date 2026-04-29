@@ -163,16 +163,16 @@ func (s *AlertsService) getMeasurementValue(ctx context.Context, deviceID, senso
 	// Get database connection
 	db := s.dbGetter()
 	if db == nil {
-		return nil, nil, nil, fmt.Errorf("database not available")
+		return nil, nil, nil, fmt.Errorf("database not available for device_id=%s, sensor_type=%s, measurement_field=%s", deviceID, sensorType, measurementField)
 	}
 
 	// First get the device from database
 	var dbDevice databaseiotgorm.Device
 	if err := db.WithContext(ctx).Where("device_id = ?", deviceID).First(&dbDevice).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, nil, nil, fmt.Errorf("device not found in database")
+			return nil, nil, nil, fmt.Errorf("device not found in database: device_id=%s, sensor_type=%s", deviceID, sensorType)
 		}
-		return nil, nil, nil, fmt.Errorf("failed to query device: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to query device from database: device_id=%s, sensor_type=%s, error=%w", deviceID, sensorType, err)
 	}
 
 	// Default to -1m if no duration specified
@@ -254,14 +254,14 @@ func (s *AlertsService) getAverageMeasurement(ctx context.Context, db *gorm.DB, 
 		lastTimestamp = result.LastTimestamp
 
 	default:
-		return dbDevice, nil, nil, fmt.Errorf("unsupported sensor type: %s", sensorType)
+		return dbDevice, nil, nil, fmt.Errorf("unsupported sensor type: sensor_type=%s, device_id=%s, measurement_field=%s", sensorType, dbDevice.DeviceID, measurementField)
 	}
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return dbDevice, nil, nil, nil
 		}
-		return dbDevice, nil, nil, err
+		return dbDevice, nil, nil, fmt.Errorf("failed to query average measurement: sensor_type=%s, device_id=%s, db_device_id=%d, measurement_field=%s, since=%v, error=%w", sensorType, dbDevice.DeviceID, dbDevice.ID, measurementField, sinceDuration, err)
 	}
 
 	// Check if we got valid data
