@@ -428,6 +428,31 @@ func (m *Manager) GetConnections() map[string]*Connection {
 	return result
 }
 
+// GetDBForSensorType returns the database connection for a specific sensor type
+func (m *Manager) GetDBForSensorType(sensorType string) *gorm.DB {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Find database that supports this sensor type
+	for key, conn := range m.connections {
+		m.log.Debug("Checking database connection for sensor type",
+			zap.String("database", key),
+			zap.String("sensorType", sensorType),
+			zap.Strings("supportedTypes", conn.database.Spec.SupportedSensorTypes))
+
+		if slices.Contains(conn.database.Spec.SupportedSensorTypes, sensorType) {
+			m.log.Debug("Found matching database for sensor type",
+				zap.String("database", key),
+				zap.String("sensorType", sensorType))
+			return conn.db
+		}
+	}
+
+	m.log.Warn("No database found for sensor type",
+		zap.String("sensorType", sensorType))
+	return nil
+}
+
 // GetDB returns the GORM database instance for a connection
 func (c *Connection) GetDB() *gorm.DB {
 	return c.db

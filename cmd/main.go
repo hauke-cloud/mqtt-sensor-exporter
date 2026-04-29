@@ -259,21 +259,14 @@ func main() {
 		setupLog.Info("Configuring REST API server",
 			"address", apiBindAddress)
 
-		// Create a function to get DB connection when needed
-		getDB := func() *gorm.DB {
-			// Try to get a database connection from the manager
-			// This will be available after a Database resource is created
-			conns := dbManager.GetConnections()
-			if len(conns) > 0 {
-				for _, conn := range conns {
-					return conn.GetDB()
-				}
-			}
-			return nil
+		// Create a function to get DB connection for a specific sensor type
+		getDB := func(sensorType string) *gorm.DB {
+			// Get the database connection for this sensor type from the manager
+			return dbManager.GetDBForSensorType(sensorType)
 		}
 
 		// Create API components
-		// Pass a function that can dynamically retrieve the database connection
+		// Pass a function that can dynamically retrieve the database connection based on sensor type
 		alertsService := api.NewAlertsService(mgr.GetClient(), getDB, zapLog.With(uberzap.String("component", "api-alerts")))
 		apiHandler := api.NewHandler(alertsService, zapLog.With(uberzap.String("component", "api-handler")))
 

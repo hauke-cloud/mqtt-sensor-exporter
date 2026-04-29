@@ -32,13 +32,13 @@ import (
 // AlertsService handles fetching devices with triggered alerts
 type AlertsService struct {
 	k8sClient client.Client
-	dbGetter  func() *gorm.DB
+	dbGetter  func(sensorType string) *gorm.DB
 	log       *zap.Logger
 }
 
 // NewAlertsService creates a new alerts service
-// dbGetter is a function that returns the current database connection (can be nil if not yet available)
-func NewAlertsService(k8sClient client.Client, dbGetter func() *gorm.DB, log *zap.Logger) *AlertsService {
+// dbGetter is a function that returns the database connection for a specific sensor type (can be nil if not yet available)
+func NewAlertsService(k8sClient client.Client, dbGetter func(sensorType string) *gorm.DB, log *zap.Logger) *AlertsService {
 	return &AlertsService{
 		k8sClient: k8sClient,
 		dbGetter:  dbGetter,
@@ -160,8 +160,8 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 // Always calculates the average over a time window
 // If sinceDuration is 0, defaults to -1m
 func (s *AlertsService) getMeasurementValue(ctx context.Context, deviceID, sensorType, measurementField string, sinceDuration time.Duration) (*databaseiotgorm.Device, *float64, *time.Time, error) {
-	// Get database connection
-	db := s.dbGetter()
+	// Get database connection for this specific sensor type
+	db := s.dbGetter(sensorType)
 	if db == nil {
 		return nil, nil, nil, fmt.Errorf("database not available for device_id=%s, sensor_type=%s, measurement_field=%s", deviceID, sensorType, measurementField)
 	}
