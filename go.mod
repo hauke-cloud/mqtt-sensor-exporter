@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/hauke-cloud/iot-api v0.0.1
 	github.com/hauke-cloud/kubernetes-iot-api v0.0.8
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/onsi/ginkgo/v2 v2.27.2

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
+	"github.com/hauke-cloud/iot-api/alerts"
 	iotv1alpha1 "github.com/hauke-cloud/kubernetes-iot-api/api/v1alpha1"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -47,7 +48,7 @@ func NewAlertsService(k8sClient client.Client, dbGetter func(sensorType string) 
 }
 
 // GetTriggeredAlerts returns all devices that have triggered their alert thresholds
-func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFilters) ([]AlertDevice, error) {
+func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters alerts.AlertFilters) ([]alerts.AlertDevice, error) {
 	// Get all devices from Kubernetes that have alert conditions
 	deviceList := &iotv1alpha1.DeviceList{}
 	if err := s.k8sClient.List(ctx, deviceList); err != nil {
@@ -55,7 +56,7 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 		return nil, fmt.Errorf("failed to list devices: %w", err)
 	}
 
-	var alertDevices []AlertDevice
+	var alertDevices []alerts.AlertDevice
 	sinceTime := time.Time{}
 	if filters.Since > 0 {
 		sinceTime = time.Now().Add(-filters.Since)
@@ -123,7 +124,7 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 		}
 
 		// Alert is triggered - add to results
-		alertDevice := AlertDevice{
+		alertDevice := alerts.AlertDevice{
 			DeviceID:        device.Name,
 			DeviceName:      device.Spec.FriendlyName,
 			SensorType:      device.Spec.SensorType,
@@ -132,7 +133,7 @@ func (s *AlertsService) GetTriggeredAlerts(ctx context.Context, filters AlertFil
 			IEEEAddr:        device.Spec.IEEEAddr,
 			CurrentValue:    currentValue,
 			LastMeasurement: lastMeasurement,
-			AlertCondition: AlertConditionInfo{
+			AlertCondition: alerts.AlertConditionInfo{
 				Measurement: device.Spec.AlertCondition.Measurement,
 				Operator:    device.Spec.AlertCondition.Operator,
 				Threshold:   device.Spec.AlertCondition.Value,

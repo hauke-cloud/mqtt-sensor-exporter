@@ -52,7 +52,7 @@ func NewServer(config ServerConfig, handler *Handler, log *zap.Logger) *Server {
 func (s *Server) Start(ctx context.Context) error {
 	// Create router
 	mux := http.NewServeMux()
-	
+
 	// Register routes
 	// /api/v2/alerts - list all alerts
 	// /api/v2/alerts/{device-name} - get alerts for specific device

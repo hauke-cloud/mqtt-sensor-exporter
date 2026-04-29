@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hauke-cloud/iot-api/alerts"
 	"go.uber.org/zap"
 )
 
@@ -84,7 +85,7 @@ func (h *Handler) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	response := AlertsResponse{
+	response := alerts.AlertsResponse{
 		Devices:   devices,
 		Count:     len(devices),
 		Timestamp: time.Now(),
@@ -103,8 +104,8 @@ func (h *Handler) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseAlertFilters parses query parameters and path parameters into AlertFilters
-func (h *Handler) parseAlertFilters(r *http.Request) (AlertFilters, error) {
-	filters := AlertFilters{}
+func (h *Handler) parseAlertFilters(r *http.Request) (alerts.AlertFilters, error) {
+	filters := alerts.AlertFilters{}
 
 	// Extract device name from path if present: /api/v2/alerts/{device-name}
 	path := r.URL.Path
@@ -153,7 +154,7 @@ func parseDuration(s string) (time.Duration, error) {
 	s = strings.ReplaceAll(s, "hour", "h")
 	s = strings.ReplaceAll(s, "sec", "s")
 	s = strings.ReplaceAll(s, "day", "h")
-	
+
 	// For days, convert to hours
 	if strings.HasSuffix(s, "d") {
 		daysStr := strings.TrimSuffix(s, "d")
@@ -181,7 +182,7 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) sendError(w http.ResponseWriter, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	json.NewEncoder(w).Encode(alerts.ErrorResponse{
 		Error:     message,
 		Code:      code,
 		Timestamp: time.Now(),
