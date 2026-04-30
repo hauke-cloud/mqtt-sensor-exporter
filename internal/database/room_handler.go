@@ -63,13 +63,13 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 		}
 
 		if name, ok := payload["Name"].(string); ok {
-			device.DeviceName = name
+			device.DeviceName = sanitizeString(name)
 		}
 		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok {
-			device.ShortAddr = shortAddr
+			device.ShortAddr = sanitizeString(shortAddr)
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok {
-			device.IEEEAddr = ieeeAddr
+			device.IEEEAddr = sanitizeString(ieeeAddr)
 		}
 
 		if err := h.db.WithContext(ctx).Create(&device).Error; err != nil {
@@ -83,15 +83,15 @@ func (h *RoomHandler) StoreMeasurement(ctx context.Context, deviceID string, pay
 	} else {
 		updated := false
 		if name, ok := payload["Name"].(string); ok && name != "" && device.DeviceName != name {
-			device.DeviceName = name
+			device.DeviceName = sanitizeString(name)
 			updated = true
 		}
 		if shortAddr, ok := payload["databaseiotgorm.Device"].(string); ok && shortAddr != "" && device.ShortAddr != shortAddr {
-			device.ShortAddr = shortAddr
+			device.ShortAddr = sanitizeString(shortAddr)
 			updated = true
 		}
 		if ieeeAddr, ok := payload["IEEEAddr"].(string); ok && ieeeAddr != "" && device.IEEEAddr != ieeeAddr {
-			device.IEEEAddr = ieeeAddr
+			device.IEEEAddr = sanitizeString(ieeeAddr)
 			updated = true
 		}
 		if updated {
