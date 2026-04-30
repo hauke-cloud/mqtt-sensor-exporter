@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
-import databaseiotgorm "github.com/hauke-cloud/database-iot-gorm"
 
 // ValveHandler handles storage of valve sensor measurements
 type ValveHandler struct {
