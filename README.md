@@ -1,408 +1,247 @@
-
-
+<!-- llm-readme-management spec=1 commit=36210983f23b11e1a8a0ba69f7c29b3f1924b4e1 template=terraform model=qwen3.8-27b-q4 digest=f68682b55584 generated=2026-09-30T14:02:40Z -->
 <a href="https://hauke.cloud" target="_blank"><img src="https://img.shields.io/badge/home-hauke.cloud-brightgreen" alt="hauke.cloud" style="display: block;" /></a>
 <a href="https://github.com/hauke-cloud" target="_blank"><img src="https://img.shields.io/badge/github-hauke.cloud-blue" alt="hauke.cloud Github Organisation" style="display: block;" /></a>
+<a href="https://github.com/hauke-cloud/llm-readme-management" target="_blank"><img src="https://img.shields.io/badge/template-terraform-orange" alt="Repository type - terraform" style="display: block;" /></a>
 
-# MQTT Sensor Exporter
+
+# Template Repository
+
 
 <img src="https://raw.githubusercontent.com/hauke-cloud/.github/main/resources/img/organisation-logo-small.png" alt="hauke.cloud logo" width="109" height="123" align="right">
 
-A Kubernetes operator that extracts measurements (moisture, water, temperature, etc.) from MQTT/Zigbee sensors and represents them as Kubernetes Custom Resources. Built with kubebuilder, this operator provides a declarative, cloud-native way to manage IoT sensors and their data.
 
-## Features
+<llm header hint="Say whether this is a reusable module or a root module that owns real state.">
 
-- **Declarative Configuration**: Define MQTT bridges and devices using Kubernetes CRDs
-- **Multi-Ecosystem Support**: Works with Zigbee2MQTT, Tasmota, and generic MQTT devices
-- **Automatic Discovery**: Continuously discovers devices from Zigbee2MQTT bridges
-- **Secure Credentials**: Store MQTT credentials in Kubernetes Secrets
-- **Device Management**: Enrich discovered devices with custom names, locations, and metadata
-- **Measurement Corrections**: Apply calibration corrections to fix inaccurate sensor readings
-- **Alert Conditions**: Configure automatic alerts when measurements exceed thresholds
-- **Real-time Monitoring**: Track device availability, battery levels, and signal quality
-- **Measurement Storage**: Store measurements and provide interfaces for database integration
-- **Command Support**: Send commands back to devices through MQTT
+This Go Kubernetes operator consumes Tasmota MQTT telemetry from Zigbee sensors and persists the measurements into PostgreSQL/TimescaleDB, with a REST API for querying alert conditions. It is a deployable service you install into a home or IoT Kubernetes cluster, then configure by declaring `MQTTBridge` and `Database` custom resources.
 
-## Architecture
+</llm>
 
-### Custom Resources
 
-#### MQTTBridge
-Represents an MQTT broker connection. The operator connects to configured bridges, subscribes to device topics, and manages device discovery.
+## :book: Description
 
-**Key Features:**
-- Host, port, and TLS configuration
-- Credentials stored in Kubernetes Secrets
-- Automatic reconnection
-- Device discovery enable/disable
-- Connection status monitoring
+<llm description>
 
-#### Device
-Represents a discovered sensor/actuator. The operator creates these resources automatically during discovery, and users can enrich them with metadata.
+This is a Kubernetes operator that ingests Tasmota Zigbee sensor telemetry over MQTT and persists the measurements into PostgreSQL/TimescaleDB, with a REST endpoint for querying triggered alert conditions. If you run Tasmota-based Zigbee sensors on a Kubernetes cluster and need their readings in a queryable database with configurable alert thresholds, this is the component that connects the broker to the database.
 
-**Operator-Managed Fields:**
-- `spec.bridgeRef`: Reference to parent MQTTBridge
-- `spec.ieeeAddr`: Unique IEEE address from Zigbee
-- `status.modelId`: Device model
-- `status.manufacturer`: Device manufacturer
-- `status.capabilities`: List of sensors/actuators
-- `status.lastMeasurement`: Latest measurement data
-- `status.batteryLevel`: Battery percentage
-- `status.linkQuality`: Signal strength
+It watches two custom resources — `MQTTBridge` and `Database` — whose types come from the `kubernetes-iot-api` module in the hauke-cloud organisation. For each bridge it opens an MQTT connection, subscribes to the configured sensor topics, parses Tasmota `ZbReceived` payloads, applies per-device additive corrections, and writes the result to the matching database. A companion HTTP API evaluates alert conditions declared on `Device` resources against the stored values.
 
-**User-Configurable Fields:**
-- `spec.friendlyName`: Human-readable name
-- `spec.location`: Physical location
-- `spec.room`: Room grouping
-- `spec.disabled`: Disable measurement processing
-- `spec.corrections`: Apply calibration corrections to measurements
-- `spec.alertCondition`: Set alert threshold for monitoring
-- `spec.metadataLabels`: Custom key-value pairs
+- Connects to MQTT brokers (TCP or TLS) and subscribes to Tasmota `telemetry` and `sensor` topics
+- Parses `ZbReceived` payloads and matches them to `Device` CRs by `status.shortAddr`
+- Persists measurements for `moisture`, `water_level`, `valve`, and `room` sensor types
+- Serves `GET /api/v2/alerts` with optional filters (`device-type`, `location`, `room`, `since`)
+- Ships a Helm chart under `deployments/helm/mqtt-sensor-exporter/`
 
-#### Database
-Represents a TimescaleDB/PostgreSQL connection for persisting sensor measurements. Multiple databases can be configured to handle different sensor types.
+</llm>
 
-**Key Features:**
-- Password or client certificate authentication
-- SSL/TLS with configurable verification modes
-- Connection pooling
-- Automatic batching for performance
-- Sensor type mapping (moisture, power, solar, etc.)
-- GORM integration for automatic table management
 
-**Configuration Fields:**
-- `spec.host`, `spec.port`, `spec.database`: Connection details
-- `spec.username`: Database username
-- `spec.passwordSecretRef` or `spec.clientCertSecretRef`: Authentication
-- `spec.sslMode`: SSL verification level
-- `spec.sensorType`: Route specific sensor types to this database
-- `spec.batchSize`, `spec.batchTimeout`: Performance tuning
+## :clipboard: Requirements
 
-## Getting Started
+<llm requirements hint="Give the Terraform version from .terraform-version and the provider constraints from versions.tf, plus the credentials the providers need.">
 
-### Prerequisites
+- Go 1.26 (go.mod pins 1.26.2)
+- Docker, for building container images
+- A Kubernetes cluster with the `mqtt.hauke.cloud/v1alpha1` CRDs (`mqttbridges`, `devices`, `databases`) already installed; this repository does not ship or generate CRDs
+- `kubectl` configured against the target cluster
+- `kind`, required by `make test-e2e`
+- `helm`, for deploying via the chart in `deployments/helm/`
+- `pre-commit`, per CONTRIBUTING.md
+- A reachable MQTT broker with Tasmota devices publishing `ZbReceived` telemetry on the configured topics
+- A PostgreSQL or TimescaleDB instance reachable from the cluster, with a role permitted to run the schema migrations from `database-iot-gorm`; credentials stored in Kubernetes Secrets
+- An ingress controller (nginx or Traefik) providing TLS termination for the REST API; for the documented mTLS setup, a client-CA secret (e.g. `default/mqtt-api-client-ca`)
 
-- Kubernetes cluster (1.28+)
-- kubectl configured
-- MQTT broker (e.g., Mosquitto)
-- Zigbee2MQTT or Tasmota (for Zigbee devices)
-- TimescaleDB/PostgreSQL (optional, for persistent storage)
+No cloud-provider credentials are required.
 
-### Installation
+</llm>
 
-The operator automatically installs/upgrades its CRDs at startup by default. No separate CRD installation step is required!
 
-1. **Deploy the operator:**
+## 🚀 Getting started
 
-Development mode (runs locally, installs CRDs automatically):
+<llm getting_started hint="terraform init, plan and apply, with the backend configuration the repository actually uses. Say plainly if apply touches real infrastructure.">
+
+1. Clone the repository.
+
+```bash
+git clone https://github.com/hauke-cloud/mqtt-sensor-exporter.git
+cd mqtt-sensor-exporter
+```
+
+2. Build the operator binary.
+
+```bash
+make build
+```
+
+3. Run the operator against your cluster.
+
 ```bash
 make run
 ```
 
-Production deployment:
-```bash
-make docker-build docker-push IMG=<your-registry>/mqtt-sensor-exporter:tag
-make deploy IMG=<your-registry>/mqtt-sensor-exporter:tag
-```
+The operator requires a Kubernetes cluster with the `mqtt.hauke.cloud/v1alpha1` CRDs (`mqttbridges`, `devices`, `databases`) already installed and `kubectl` configured for that cluster. This repository does not ship or generate those CRDs; they are provided by the external `kubernetes-iot-api` module. Once running, the operator watches for `MQTTBridge` and `Database` custom resources in the namespace set by `POD_NAMESPACE` (defaults to `default`), opens MQTT connections to the declared brokers, and begins persisting Tasmota sensor measurements into the configured PostgreSQL/TimescaleDB instances.
 
-The operator will automatically:
-- Install CRDs if they don't exist
-- Upgrade CRDs if they already exist
-- Start managing MQTTBridge and Device resources
+</llm>
 
-**Note:** If you prefer manual CRD installation, you can disable automatic installation:
-```bash
-# Run with CRD auto-install disabled
-./bin/manager --install-crds=false
 
-# Or manually install CRDs first
-make install
-```
+## :airplane: Usage
 
-### Quick Start
+<llm usage hint="For a reusable module, the central example is a module block with source, version and the required variables filled in from variables.tf. For a root module, show the workflow instead.">
 
-1. **Create MQTT credentials secret:**
+Once the operator is running in your cluster, you interact with it by declaring custom resources and querying the REST API.
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mqtt-credentials
-  namespace: default
-type: Opaque
-stringData:
-  username: "your-mqtt-username"
-  password: "your-mqtt-password"
-```
+**Deploy the operator**
 
 ```bash
-kubectl apply -f mqtt-credentials.yaml
+helm install mqtt-sensor-exporter ./deployments/helm/mqtt-sensor-exporter
 ```
 
-2. **Create an MQTTBridge:**
+The chart defaults to image `ghcr.io/hauke-cloud/mqtt-sensor-exporter:1.0.0`, one replica, and the REST API enabled on port `8111`.
+
+**Declare an MQTTBridge and a Database**
+
+Create a Kubernetes Secret with keys `username` and `password` for your broker, then apply an `MQTTBridge` CR:
 
 ```yaml
 apiVersion: mqtt.hauke.cloud/v1alpha1
 kind: MQTTBridge
 metadata:
-  name: home-zigbee
-  namespace: default
+  name: tasmota-bridge
+  namespace: mqtt-sensor-exporter-system
 spec:
-  host: "mqtt.local"
+  host: mqtt.example.com
   port: 1883
+  deviceType: tasmota
   credentialsSecretRef:
     name: mqtt-credentials
-  topicPrefix: "zigbee2mqtt"
-  discoveryEnabled: true
+  topics:
+    - topic: "tele/+/SENSOR"
+      type: telemetry
+      qos: 0
 ```
 
-```bash
-kubectl apply -f mqttbridge.yaml
-```
-
-3. **Check connection status:**
-
-```bash
-kubectl get mqttbridges
-```
-
-4. **View discovered devices:**
-
-```bash
-kubectl get devices
-```
-
-5. **Enrich a device with metadata:**
-
-```bash
-kubectl edit device <device-name>
-```
-
-Add your custom fields:
-```yaml
-spec:
-  friendlyName: "Living Room Temperature Sensor"
-  location: "Living Room"
-  room: "living-room"
-  metadataLabels:
-    zone: "ground-floor"
-    type: "climate"
-```
-
-6. **Apply measurement corrections (optional):**
-
-If your sensor readings are inaccurate, you can apply corrections:
-
-```bash
-kubectl patch device <device-name> --type merge -p '
-spec:
-  corrections:
-    temperature: -2.5  # Sensor reads 2.5°C too high
-    humidity: 5.0      # Sensor reads 5% too low
-'
-```
-
-See [MEASUREMENT_CORRECTIONS.md](MEASUREMENT_CORRECTIONS.md) for detailed documentation.
-
-7. **Configure alert conditions (optional):**
-
-Set up alerts to monitor critical thresholds:
-
-```bash
-kubectl patch device <device-name> --type merge -p '
-spec:
-  alertCondition:
-    measurement: "temperature"
-    operator: "above"
-    value: 25.0
-'
-```
-
-Check alert status:
-```bash
-kubectl get device <device-name> -o jsonpath='{.status.alert}'
-```
-
-See [ALERT_CONDITIONS.md](ALERT_CONDITIONS.md) for detailed documentation.
-
-### Configuration Examples
-
-#### TLS-Enabled Bridge
-
-```yaml
-apiVersion: mqtt.hauke.cloud/v1alpha1
-kind: MQTTBridge
-metadata:
-  name: secure-bridge
-spec:
-  host: "mqtt.example.com"
-  port: 8883
-  credentialsSecretRef:
-    name: mqtt-credentials
-  topicPrefix: "zigbee2mqtt"
-  tls:
-    enabled: true
-    insecureSkipVerify: false
-    caSecretRef:
-      name: mqtt-ca-cert
-```
-
-#### Multiple Bridges
-
-You can configure multiple bridges for different MQTT brokers or Zigbee coordinators:
-
-```bash
-kubectl apply -f bridge-ground-floor.yaml
-kubectl apply -f bridge-first-floor.yaml
-kubectl apply -f bridge-garage.yaml
-```
-
-#### Database Configuration
-
-Configure TimescaleDB for persistent storage:
+Similarly, create a Secret with key `password` for the database and apply a `Database` CR:
 
 ```yaml
 apiVersion: mqtt.hauke.cloud/v1alpha1
 kind: Database
 metadata:
-  name: moisture-db
+  name: timescale
+  namespace: mqtt-sensor-exporter-system
 spec:
-  host: "timescaledb.default.svc.cluster.local"
+  host: db.example.com
   port: 5432
-  database: "moisture_sensors"
-  username: "sensor_writer"
+  database: iot
+  username: exporter
   passwordSecretRef:
     name: db-credentials
-  sensorType: "moisture"
-  sslMode: "require"
-  maxConnections: 10
-  batchSize: 100
+  sslMode: require
+  supportedSensorTypes:
+    - moisture
+    - room
 ```
 
-Multiple databases for different sensor types:
+The operator connects to the broker, subscribes to the listed topics, and writes matched Tasmota `ZbReceived` payloads into the database. Devices must already exist as `Device` CRs (matched by `status.shortAddr`); the operator does not create or update them.
+
+**Query alerts**
+
+The REST API serves plain HTTP (authentication is expected at the ingress):
 
 ```bash
-kubectl apply -f moisture-db.yaml
-kubectl apply -f power-db.yaml
-kubectl apply -f solar-db.yaml
+curl "http://<service>:8111/api/v2/alerts?since=5m&room=kitchen"
 ```
 
-See [DATABASE_QUICKSTART.md](DATABASE_QUICKSTART.md) for detailed setup instructions.
+Supported query parameters: `device-type`, `location`, `room`, `since` (e.g. `5m`). When `since` is set, alert conditions are evaluated against the average over that window; otherwise the latest single measurement is used.
 
-### Monitoring Devices
+</llm>
 
-View all devices with their status:
-```bash
-kubectl get devices -o wide
-```
 
-Get detailed device information:
-```bash
-kubectl describe device <device-name>
-```
+## :wrench: Configuration
 
-Watch for device updates:
-```bash
-kubectl get devices -w
-```
+<llm configuration hint="A table of the variables in variables.tf: name, type, default, required. Point at variables.tf for the full set and mention outputs.tf if it exists.">
 
-## Integration Points
+This repository is not a Terraform module; it contains no `.tf` files. Configuration is supplied through CLI flags, one environment variable, and Helm chart values.
 
-### Database Storage
+Helm values (full set in `deployments/helm/mqtt-sensor-exporter/values.yaml`):
 
-The operator provides hooks for storing measurements in databases. Extend the `MessageCallback` in `internal/mqtt/manager.go` to implement your storage logic:
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `image.repository` | string | `ghcr.io/hauke-cloud/mqtt-sensor-exporter` | Container image |
+| `image.tag` | string | `1.0.0` | Image tag (defaults to `appVersion`) |
+| `replicaCount` | int | `1` | Operator pod replicas |
+| `operator.leaderElection` | bool | `true` | Enable leader election |
+| `operator.metrics.enabled` | bool | `true` | Enable metrics endpoint |
+| `operator.metrics.port` | int | `8080` | Metrics port |
+| `operator.health.port` | int | `8081` | Health-probe port |
+| `api.enabled` | bool | `true` | Enable the REST alert API |
+| `api.port` | int | `8111` | API listen port |
+| `api.bindAddress` | string | `":8111"` | API bind address |
+| `api.service.type` | string | `ClusterIP` | Kubernetes Service type for the API |
 
-```go
-// Example: Store to PostgreSQL, InfluxDB, TimescaleDB, etc.
-func (r *DeviceReconciler) handleMeasurement(ctx context.Context, 
-    bridgeName types.NamespacedName, 
-    ieeeAddr string, 
-    payload map[string]interface{}) {
-    // Your database logic here
-}
-```
+CLI flags (`cmd/main.go`): `--metrics-bind-address` (default `"0"`, i.e. disabled), `--health-probe-bind-address` (`:8081`), `--leader-elect` (`false`), `--metrics-secure` (`true`), `--api-bind-address` (`:8111`), `--enable-http2` (`false`), plus standard `zap` logging flags.
 
-### Command Interface
+Environment variable: `POD_NAMESPACE` — namespace used by the `MQTTBridge` and `Database` watchers; falls back to `default` when unset.
 
-Send commands to devices using the MQTT manager:
+The operator also reads `MQTTBridge`, `Database`, and `Device` custom-resource specs at runtime (types from `github.com/hauke-cloud/kubernetes-iot-api`); see `config/samples/` for example manifests.
 
-```go
-manager.PublishCommand(namespace, bridgeName, ieeeAddr, map[string]interface{}{
-    "state": "ON",
-    "brightness": 255,
-})
-```
+</llm>
 
-## Development
 
-### Project Structure
+## :hammer: Development
 
-```
-.
-├── api/v1alpha1/          # CRD definitions
-│   ├── mqttbridge_types.go
-│   └── device_types.go
-├── internal/
-│   ├── controller/        # Reconciliation logic
-│   │   ├── mqttbridge_controller.go
-│   │   └── device_controller.go
-│   └── mqtt/             # MQTT client management
-│       └── manager.go
-├── config/               # Kubernetes manifests
-│   ├── crd/             # Generated CRDs
-│   ├── rbac/            # RBAC rules
-│   └── samples/         # Example resources
-└── cmd/                 # Main entry point
-```
+<llm development hint="Cover terraform fmt, validate, tflint and terraform-docs where the repository configures them.">
 
-### Building
+Before pushing, install the pre-commit hooks and run them across the tree:
 
 ```bash
-# Generate code and manifests
+pre-commit install
+pre-commit run --all-files
+```
+
+CI also enforces a conventional-commit title on every PR: the type must be `fix`, `feat`, `docs`, `ci`, or `chore`, and the subject must start with an uppercase letter.
+
+Run the unit tests (envtest-backed) and the e2e suite (requires `kind`):
+
+```bash
+make test
+make test-e2e
+```
+
+CI executes `go test -v -race -coverprofile=coverage.out -covermode=atomic ./...` on every push and pull request.
+
+Format and lint before pushing:
+
+```bash
+make fmt
+make vet
+make lint
+```
+
+CI checks `gofmt -s -l .` and `go vet ./...`. The linter is golangci-lint v2 built with a custom `logcheck` plugin (see `.custom-gcl.yml`).
+
+Two generated-file targets must be run and their output committed, or CI will fail on a diff:
+
+```bash
 make generate
 make manifests
-
-# Run tests
-make test
-
-# Build binary
-make build
-
-# Build and push Docker image
-make docker-build docker-push IMG=<registry>/mqtt-sensor-exporter:tag
 ```
 
-### Testing
+Both invoke controller-gen for DeepCopy methods and RBAC manifests. This repository does not generate CRDs; the API types come from the external `kubernetes-iot-api` module.
 
-Run unit tests:
-```bash
-make test
-```
+</llm>
 
-Run with a local Kubernetes cluster (kind/minikube):
-```bash
-make run
-```
 
-## Roadmap
+## 📄 License
 
-- [ ] Measurement CRD for Kubernetes-native data storage
-- [ ] Prometheus metrics export
-- [ ] Grafana dashboard templates
-- [ ] Device group management
-- [ ] Alerting on device unavailability
-- [ ] Historical data queries
-- [ ] Device firmware update support
-- [ ] Web UI for device management
+This Project is licensed under the GNU General Public License v3.0
 
-## Contributing
+- see the [LICENSE](LICENSE) file for details.
+
+
+## :coffee: Contributing
 
 To become a contributor, please check out the [CONTRIBUTING](CONTRIBUTING.md) file.
 
-## License
 
-This Project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+## :email: Contact
 
-## Contact
-
-For any inquiries or support requests, please open an issue in this repository or contact us at [contact@hauke.cloud](mailto:contact@hauke.cloud).
-
+For any inquiries or support requests, please open an issue in this
+repository or contact us at [contact@hauke.cloud](mailto:contact@hauke.cloud).
